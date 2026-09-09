@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phase 1 (Foundation) is implemented: a minimal Svelte window, sandboxed Electron renderer, and a narrow typed app-info bridge. Library configuration, scanning, persistence, metadata, and portable distribution are later milestones.
+Phases 1–2 are implemented: a minimal Svelte window, sandboxed Electron renderer, narrow typed bridge, portable INI configuration, library folder selection, and single-instance behavior. Scanning, catalog persistence, metadata, and portable distribution are later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -48,15 +48,27 @@ Close the app window to end development. Renderer edits update through Vite; res
 | Command | Purpose |
 | --- | --- |
 | `npm run typecheck` | Check main/preload/shared TypeScript and Svelte renderer types. |
-| `npm test` | Run IPC validation tests using Node's built-in test runner. |
+| `npm test` | Run configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
 | `npm run build` | Compile main, preload, and renderer into `out/`; does not package a portable executable. |
 | `npm start` | Open the compiled app after a build. |
-| `npm run test:smoke` | Build and launch real Electron; verify rendering, the bridge, and renderer isolation. |
+| `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
 | `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on port 5173; close other dev servers first. |
 
-The smoke tests close their window and save an ignored screenshot at `test-results/foundation.png`. They require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked. There is no durable application state yet; portable storage and single-instance handling begin in Phase 2.
+The smoke tests use temporary portable folders, supply fake native picker results, close their windows, and save an ignored screenshot at `test-results/portable-config.png`. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
-Verified Phase 1 checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
+Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
+
+## Library setup
+
+Run `npm run dev`, then select **Choose library folder**. Select a folder on the same drive as this checkout, such as a `Games` subfolder or a sibling folder. Selection checks the folder itself but does not enumerate its contents or scan. Cancel leaves configuration unchanged. Use **Retry** after reconnecting an unavailable drive or correcting configuration.
+
+During development and compiled preview, the checkout is the portable base, regardless of the shell's working directory. `config.ini` is created there only after a valid selection. A packaged build will use electron-builder's `PORTABLE_EXECUTABLE_DIR`; it refuses to guess a base if that value is unavailable. Packaged validation remains Phase 15.
+
+The INI stores the library root relative to the portable base, including `../Games` for a sibling on the same drive. Move the app and library together, preserving their relative layout. Roots containing the app or overlapping `data/` are rejected, including resolved junction targets. A detected existing `data/library.db` blocks switching to another library until the later rebuild flow is implemented.
+
+[config.example.ini](config.example.ini) shows defaults. The small INI format supports named sections, scalar `key=value` entries, blank lines, and full-line `;` or `#` comments. The app writes JSON-quoted string values; forward slashes are easiest for paths. Duplicate sections/keys, malformed lines, unsupported versions, and invalid known settings produce an error without overwriting the original file. Saves preserve unknown scalar settings but normalize formatting and remove comments. Do not edit the file while a folder picker is open.
+
+No providers are implemented or enabled. Future credentials stay in main-process configuration; ordinary renderer queries receive only library status, its resolved path, and a message. Defaults for collection visibility, matching threshold, and sort are stored for later milestones; they do not enable those features yet.
 
 Local version control uses Git. INI settings and their backups, `.env` files, databases, artwork/data, logs, dependencies, and build/test output are ignored. Only sanitized `*.example.ini` templates may be tracked; never put real API keys in those examples. Review `git diff --cached` before committing. Git ignore rules do not protect files that were already tracked or explicitly force-added.
 

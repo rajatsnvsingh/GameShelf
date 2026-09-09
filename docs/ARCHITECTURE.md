@@ -15,6 +15,8 @@ Suggested source areas: `src/main/{config,library,database,metadata,artwork,syst
 
 Phase 1 implements only `src/main`, `src/preload`, `src/renderer`, and `src/shared`. The `window.gameShelf.getAppInfo()` bridge returns name/version through `app:get-info`; main accepts only the owning window's main frame at the expected document URL and rejects payload arguments. The preload is bundled as CommonJS for Electron's sandbox. electron-vite builds the three entry points; its loopback development server is tooling, not a product server. A local-resource request policy and CSP restrict renderer traffic; future enabled providers belong in main-process adapters.
 
+Phase 2 adds `src/main/config` and two no-argument bridge methods: `getLibraryState()` and `chooseLibraryRoot()`. Both use the same caller validation; main opens the native dialog and accepts its result, never a renderer-supplied path. Library responses contain status/path/message only, not the INI or credentials.
+
 ## Portable storage and path bases
 
 Example layout, not an assumed root:
@@ -34,6 +36,8 @@ GameShelf/
 
 The **portable base** is the persistent distribution directory on the external drive, never the current working directory or a portable executable's temporary extraction directory. Resolve it explicitly for the packaging target. Configuration, SQLite, artwork, and optional logs remain there. Temporary Electron/Chromium host files are acceptable; authoritative state must not depend on them.
 
+Implemented resolution: unpackaged development/preview uses `app.getAppPath()`; packaged mode requires the local absolute `PORTABLE_EXECUTABLE_DIR` supplied by the [electron-builder portable launcher](https://www.electron.build/nsis/). There is no extraction-directory fallback. Actual packaged verification remains Phase 15. Same-drive sibling roots may contain `..` relative to the portable base; library roots cannot contain the app or overlap its data directory. This exception does not permit traversal in future game/artwork paths. Root checks use both lexical paths and resolved filesystem paths to catch junction overlap; they do not enumerate the selected folder.
+
 - INI library root: relative to the portable base (for example `Games`). Ask the user to select a root if missing/unavailable. The supported portable layout keeps the app, data, and library on the same drive; do not silently persist a drive-qualified fallback for a cross-drive selection.
 - Game and collection paths: relative to the selected library root. For Game B above, store `Collection_Example/Game B`, not just `Game B`.
 - Artwork paths: relative to the artwork directory. Use app-controlled filenames, not remote names or absolute URLs as local identities.
@@ -48,6 +52,8 @@ Use a single versioned `config.ini` for durable settings: relative root, collect
 The previously discussed `0.90` threshold is an initial tuning value, not proof of correctness; validate scoring with ambiguous-title fixtures. Concrete provider choices and credential fields are selected during provider milestones, not imposed by sample configuration.
 
 Plaintext API keys in INI are accepted. Main owns credential storage/use; settings may submit replacements through dedicated IPC, while ordinary responses return redacted status. Do not log secrets. Validate configuration and write updates atomically. Do not persist current search, selection, page, or scroll position; explicit durable defaults are distinct from transient UI state.
+
+Phase 2 uses a strict scalar INI reader/writer without an added dependency. Missing files use defaults in memory; the first successful root selection writes version 1 and defaults. Invalid files are preserved for correction and block selection. Each save writes a unique sibling temporary file, flushes and closes it, then renames it over `config.ini`; failed replacements clean up the temporary file. Unknown scalar entries are retained, while formatting/comments are normalized. Provider sections and their validation will be introduced with the provider milestones. The initial matching threshold is `0.90`, collection games are visible by default, default sort is `title`, and provider order is empty.
 
 ## Scanner contract
 
@@ -94,5 +100,7 @@ Provider downloads use temporary files followed by atomic replacement; failures 
 ## Maintenance and lifetime
 
 Acquire the single-instance lock before opening the database; a second launch focuses the existing window. Close database work cleanly on exit. Updates replace application files manually and retain configuration/data; migrations handle older databases.
+
+Phase 2 obtains Electron's [single-instance lock](https://www.electronjs.org/docs/latest/api/app#apprequestsingleinstancelockadditionaldata) before configuration initialization. A rejected launch quits; the primary process restores, shows, and focuses its window. No database is opened in this milestone.
 
 Deleting a missing entry removes catalog data only, never its installer folder. Database rebuild is a separate destructive catalog operation with explicit confirmation describing loss of matches/manual metadata and artwork associations. Validate the root first, retain a recoverable prior database until replacement succeeds, and never touch installer contents or erase INI settings. Rebuild is not a normal rescan or replace-all rescrape.

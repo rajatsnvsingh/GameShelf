@@ -31,6 +31,10 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 
 Phase 1 tooling: npm with exact dependency versions and `package-lock.json`; electron-vite for build/dev wiring, Node's built-in runner for pure tests, and Playwright's Electron API for window smoke checks. Use the smallest implementation that meets each milestone and iterate after verification. No UI framework beyond Svelte or speculative service abstractions are added.
 
+## Phase 2 configuration
+
+Phase 2 uses a strict scalar INI format with atomic replacement and no new dependency. The checkout is the unpackaged base; packaged builds require the portable launcher's directory. Same-drive sibling libraries are supported through relative paths. Missing config remains in memory until the user selects a valid root; invalid config is never silently reset. Collection games default to visible and sorting defaults to title. `0.90` is stored as an initial threshold only, pending fixture-based matching work.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is the preferred SQLite driver; validate compatibility with the selected Electron version and packaged Windows build.

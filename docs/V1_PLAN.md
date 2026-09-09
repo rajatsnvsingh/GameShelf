@@ -23,7 +23,7 @@ Implement in the order below. Each milestone ends with its acceptance checks and
 
 ## Phase 1 verification (2026-09-09)
 
-Foundation is implemented; Phases 2–16 have not started. Keep subsequent work simple and iterate after behavior is verified.
+Foundation was completed before Phase 2. Keep subsequent work simple and iterate after behavior is verified.
 
 - Dependency installation succeeded with npm and an exact-version lockfile; npm reported zero vulnerabilities at install time.
 - `npm run typecheck`: passed, with zero Svelte errors or warnings.
@@ -34,6 +34,17 @@ Foundation is implemented; Phases 2–16 have not started. Keep subsequent work 
 - Build/GUI checks required execution outside the Codex filesystem sandbox on this machine. This is a development environment restriction, not an app administrator requirement.
 
 This verifies the foundation on the current Windows machine only. Portable packaging, clean-machine checks, catalog workflows, and full hardening remain their scheduled milestones.
+
+## Phase 2 verification (2026-09-09)
+
+Portable configuration is implemented. Phases 3–16 have not started.
+
+- Acceptance results: `npm test` passed all 17 tests; `npm run typecheck` passed with zero errors/warnings; `npm run test:smoke` and `npm run test:smoke:dev` passed, including production builds. The generated screenshot was visually inspected.
+- INI defaults, strict parsing, atomic root saves, native folder selection, safe library-state responses, and single-instance startup are in place.
+- Unit tests cover missing/invalid INI, preservation of future provider values without exposing secrets, picker cancellation/concurrency, invalid roots and junction overlap, spaces/Unicode, folder and drive-letter relocation, restart, unavailable roots, existing-catalog switch refusal, and failed atomic replacement cleanup.
+- Electron smoke tests exercise the UI and actual IPC with fake native dialog results, using only temporary fixtures. They verify persistence after relocation/restart, unavailable-root feedback, renderer isolation, and a real second process restoring the existing window and exiting.
+- Native dialog presentation itself is not automated. A packaged executable, actual removable-drive reassignment, read-only/unplugged-drive fault injection, and power-loss durability are not verified here; their packaging/hardening checks remain scheduled. Drive-letter changes are covered with Windows path fixtures and relocation with actual temporary folders.
+- No scanner, database, provider integration, or game-file operation has been added. INI files remain ignored by Git; `config.example.ini` is a sanitized reference only.
 
 ## Product completion criteria
 
