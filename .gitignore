@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+release/
+test-results/
+electron.vite.config.*.mjs
+# Local settings may contain provider API keys. Track only sanitized examples.
+*.ini
+*.ini.*
+!*.example.ini
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env
+.env.*
