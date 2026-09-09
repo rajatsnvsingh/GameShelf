@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–5 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Metadata, artwork, expanded browsing controls, and portable distribution remain later milestones.
+Phases 1–6 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Phase 6 adds independently tested provider contracts and a matching resolver; live metadata, artwork, expanded browsing controls, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -77,7 +77,7 @@ The INI stores the library root relative to the portable base, including `../Gam
 
 [config.example.ini](config.example.ini) shows defaults. The small INI format supports named sections, scalar `key=value` entries, blank lines, and full-line `;` or `#` comments. The app writes JSON-quoted string values; forward slashes are easiest for paths. Duplicate sections/keys, malformed lines, unsupported versions, and invalid known settings produce an error without overwriting the original file. Saves preserve unknown scalar settings but normalize formatting and remove comments. Do not edit the file while a folder picker is open.
 
-No providers are implemented or enabled. Future credentials stay in main-process configuration; ordinary renderer queries receive only library status, its resolved path, and a message. Defaults for collection visibility, matching threshold, and sort are stored for later milestones; they do not enable those features yet.
+No real providers are implemented or enabled. `src/main/metadata` defines normalized search, details, and artwork references plus a resolver tested with fake providers. It returns match proposals without writing catalog data or changing existing bindings. The app does not call it yet. Future credentials stay in main-process configuration; ordinary renderer queries never receive them. Defaults for collection visibility, matching threshold, and sort are stored for later integration; they do not enable those features yet.
 
 Local version control uses Git. INI settings and their backups, `.env` files, databases, artwork/data, logs, dependencies, and build/test output are ignored. Only sanitized `*.example.ini` templates may be tracked; never put real API keys in those examples. Review `git diff --cached` before committing. Git ignore rules do not protect files that were already tracked or explicitly force-added.
 

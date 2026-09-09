@@ -1,0 +1,85 @@
+import type { GameDetails, ProviderBinding, ProviderEntry, SearchCandidate } from './provider.ts';
+
+export interface MatchAttempt {
+  providerId: string;
+  outcome: 'disabled' | 'unconfigured' | 'no-results' | 'low-confidence' | 'ambiguous' | 'error' | 'not-found' | 'matched';
+}
+
+export type Resolution =
+  | { status: 'preserved'; binding: ProviderBinding }
+  | { status: 'matched'; binding: ProviderBinding; details: GameDetails; attempts: MatchAttempt[] }
+  | { status: 'unresolved'; attempts: MatchAttempt[] };
+
+function normalize(title: string): string {
+  return title.normalize('NFC').toLowerCase().trim().replace(/\s+/gu, ' ');
+}
+
+/** A conservative title heuristic, not a probability. No edition/sequel cleanup. */
+export function titleConfidence(query: string, title: string): number {
+  const left = normalize(query);
+  const right = normalize(title);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  const a = new Set(left.split(' '));
+  const b = new Set(right.split(' '));
+  const overlap = [...a].filter(word => b.has(word)).length;
+  return Math.min(0.89, 2 * overlap / (a.size + b.size));
+}
+
+function validCandidate(candidate: SearchCandidate): boolean {
+  return typeof candidate?.recordId === 'string' && Boolean(candidate.recordId.trim()) &&
+    typeof candidate.title === 'string' && Boolean(candidate.title.trim());
+}
+
+/** Returns a proposal only. Never writes the catalog, changes overrides, or refreshes a binding. */
+export async function resolveMetadata(
+  query: string,
+  providers: readonly ProviderEntry[],
+  options: { threshold?: number; binding?: ProviderBinding | null } = {}
+): Promise<Resolution> {
+  // Normal scans and priority changes must not rematch any existing binding, even offline.
+  if (options.binding) return { status: 'preserved', binding: { ...options.binding } };
+  const threshold = options.threshold ?? 0.90;
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error('Invalid matching threshold.');
+  const attempts: MatchAttempt[] = [];
+  if (!query.trim()) return { status: 'unresolved', attempts };
+  const visited = new Set<string>();
+  for (const { provider, enabled, configured } of providers) {
+    if (visited.has(provider.id)) continue;
+    visited.add(provider.id);
+    const record = (outcome: MatchAttempt['outcome']) => attempts.push({ providerId: provider.id, outcome });
+    if (!enabled) { record('disabled'); continue; }
+    if (!configured) { record('unconfigured'); continue; }
+    try {
+      const candidates = await provider.search(query);
+      if (!Array.isArray(candidates) || candidates.some(candidate => !validCandidate(candidate))) throw new Error('Invalid search response.');
+      // Duplicate IDs must not manufacture ambiguity or conceal inconsistent provider records.
+      const unique = new Map<string, SearchCandidate>();
+      for (const candidate of candidates) {
+        const previous = unique.get(candidate.recordId);
+        if (previous && (previous.title !== candidate.title || previous.releaseYear !== candidate.releaseYear)) throw new Error('Conflicting search records.');
+        unique.set(candidate.recordId, candidate);
+      }
+      const ranked = [...unique.values()].map(candidate => ({ candidate, score: titleConfidence(query, candidate.title) }))
+        .sort((a, b) => b.score - a.score || (a.candidate.recordId < b.candidate.recordId ? -1 : 1));
+      const best = ranked[0];
+      if (!best) { record('no-results'); continue; }
+      if (best.score === 0 || best.score < threshold) { record('low-confidence'); continue; }
+      // A runner-up within 0.10 is ambiguous, even if it falls below the threshold.
+      if (ranked[1] && best.score - ranked[1].score < 0.10) { record('ambiguous'); continue; }
+      const details = await provider.getGame(best.candidate.recordId);
+      if (details === null) { record('not-found'); continue; }
+      if (!validCandidate(details) || details.recordId !== best.candidate.recordId ||
+        normalize(details.title) !== normalize(best.candidate.title) || !Array.isArray(details.artwork)) {
+        throw new Error('Inconsistent detail response.');
+      }
+      record('matched');
+      return { status: 'matched', binding: { providerId: provider.id, providerRecordId: details.recordId,
+        source: 'automatic', confidence: best.score }, details, attempts };
+    } catch {
+      // Never return raw provider exceptions, URLs, or credentials in diagnostics.
+      record('error');
+    }
+  }
+  return { status: 'unresolved', attempts };
+}

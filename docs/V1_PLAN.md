@@ -69,7 +69,7 @@ SQLite persistence, migrations, and reconciliation were completed before Phase 5
 
 ## Phase 5 verification (2026-09-09)
 
-The minimal local catalog workflow is implemented. Phases 6–16 have not started.
+The minimal local catalog workflow was completed before Phase 6.
 
 - `npm test`: all 65 tests passed. `npm run typecheck`: passed with zero errors/warnings. Production and development Electron smoke checks passed, including builds; the catalog screenshot was visually inspected.
 - The app supports root selection, manual scans, game/collection lists, local details, and **Open Install Folder** by stored game ID. It creates a database only on the first successful scan and reads existing catalogs without an automatic scan.
@@ -77,6 +77,15 @@ The minimal local catalog workflow is implemented. Phases 6–16 have not starte
 - Electron checks exercise the UI and actual IPC, SQLite persistence, collection paths, missing-folder errors, restart/relocation, unavailable roots, isolation, and a second process. Fixtures copy the native runtime dependencies beside the compiled app; no real library or provider is used.
 - Native picker responses and `shell.openPath` are replaced in smoke checks: the exact validated Explorer target is verified, but native dialog/Explorer presentation is not automated. Packaged distribution, real removable-drive interruption, and full hardening remain their scheduled milestones.
 - Metadata, artwork, search/filter/sort controls, full Home/Settings screens, and maintenance flows remain later work.
+
+## Phase 6 verification (2026-09-09)
+
+Provider abstraction and the separate resolver are implemented. Phases 7–16 have not started.
+
+- `npm test`: all 79 tests passed, including 14 new metadata tests. `npm run typecheck`: passed with zero errors/warnings. `npm run build`: passed. GUI smoke tests were not repeated because this milestone adds isolated modules without changing the running app or IPC.
+- Fake providers verify normalization, result-order independence, confidence thresholds, ambiguous remakes, a close runner-up below threshold, disabled/unconfigured providers, priority/fallback, empty results, search/detail failures, missing/inconsistent details, duplicate/malformed records, safe error outcomes, optional metadata/artwork, and manual/automatic binding preservation without provider calls.
+- The resolver returns proposals only. Existing database tests continue to verify preservation of bindings and overrides during scans. No database migration, credentials, dependencies, network requests, renderer API, or application integration was added.
+- Confidence scores are conservative heuristics rather than measured probabilities. Real-provider accuracy, transport timeouts/rate limits, and optional configured live checks remain Phase 7 and subsequent provider work. Explicit refresh/rematching and matching UI remain later integration work.
 
 ## Product completion criteria
 

@@ -113,6 +113,18 @@ The resolver tries enabled/configured providers in INI order. Accept only a suff
 
 Manual selection stores an exact provider + record ID and overrides priority. Scans and priority changes preserve existing bindings. Normal explicit refresh uses the stored binding and updates provider data underneath manual overrides. Explicit rematching can change a binding while preserving manual fields/artwork. Only an explicit **replace-all rescrape** may clear those overrides; state its scope before execution and retain prior data if retrieval fails.
 
+## Phase 6 provider contracts and resolver
+
+`src/main/metadata/provider.ts` defines main-only provider identity, artwork capabilities, `search(query)`, and `getGame(recordId)`. Search records contain opaque string IDs, titles, and optional release years. Details add optional normalized metadata and cover/background URL references. Unknown fields are omitted; ratings use 0–100 and precise release dates use YYYY-MM-DD. Artwork references are future cache inputs, never renderer image sources. Adapters own credentials, transport, and validation/normalization of external responses.
+
+`resolveMetadata` accepts a literal folder-name query, provider entries in configured priority order, and an optional threshold/binding. It returns a matched proposal, an unchanged existing binding, or unresolved attempts with safe outcome codes. It has no filesystem, SQLite, Electron, configuration, or network dependency. The caller will supply INI settings during integration; no second configuration store is introduced.
+
+The initial heuristic normalizes Unicode composition, case, and whitespace only. Exact titles score 1; other titles use shared-word Dice similarity capped at 0.89. The default threshold is 0.90, deliberately allowing only exact normalized titles initially. No punctuation, edition, or sequel stripping occurs. Scores are heuristics, not match probabilities. A positive score must meet the threshold and exceed the runner-up by at least 0.10; identical titles belonging to different IDs remain ambiguous. Release year is retained for future candidate display, not guessed from folder names. Lower thresholds permit approximate matches and require later tuning against real-provider fixtures.
+
+Disabled/unconfigured providers are skipped, duplicate provider IDs are visited once, and complete candidate sets are ranked independently of result order. Duplicate records are deduplicated; conflicting duplicates or invalid IDs/titles fail that attempt. Low confidence, ambiguity, empty results, missing details, and provider errors permit fallback. Details must agree with the chosen record ID/title. Errors remain distinguishable from no results and omit raw exceptions. The first accepted proposal stops resolution.
+
+Any existing manual or automatic binding bypasses all provider calls, preserving it even when priority, availability, or the folder name changes. The resolver never receives or edits manual overrides. Explicit refresh/rematching and persistence are separate later integration work. Real-provider request timeouts/rate limits, credentials, UI, artwork downloads, and automatic enrichment are not implemented in Phase 6.
+
 ## Artwork and offline behavior
 
 Store covers/backgrounds under `data/artwork`, with database references. Precedence is **manual artwork > cached provider artwork > bundled placeholder**. Clipboard paste reads image data only on a user action, validates/decodes it, and writes a local asset. Normal refresh and cache maintenance must protect manual assets.

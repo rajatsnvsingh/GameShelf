@@ -47,6 +47,10 @@ Use `better-sqlite3` 13.0.3 with its shipped native binary, verified on this Win
 
 Connect the existing scanner and repository through one main-process library service. Create the database on the first successful manual scan, open existing data for offline browsing, and close it on exit. Use a small collection/game/details interface with transient selection. Resolve **Open Install Folder** from a validated game ID in main and reject missing, non-directory, or linked paths. Automated Electron checks capture the native shell target rather than opening Explorer; no providers or additional dependencies are introduced.
 
+## Phase 6 matching foundation
+
+Use main-only normalized provider contracts and a dependency-free resolver that returns proposals without persistence. Start conservatively: normalized exact titles score 1, other shared-word scores are capped at 0.89, and the default threshold stays 0.90. Require a 0.10 lead over the runner-up. Preserve all existing bindings without provider calls. Try enabled/configured providers sequentially in supplied priority order and return safe per-provider outcomes for unresolved/error cases. Fake providers validate this contract; actual provider wiring and request controls begin in Phase 7.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.
