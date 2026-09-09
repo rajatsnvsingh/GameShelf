@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–4 are implemented: the Electron/Svelte foundation, portable INI configuration, library folder selection, single-instance behavior, a pure scanner, and a SQLite repository with transactional migrations/reconciliation. The scanner and repository are tested independently and are not wired into the app UI yet. Manual scanning/browsing, metadata, and portable distribution remain later milestones.
+Phases 1–5 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Metadata, artwork, expanded browsing controls, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -55,19 +55,21 @@ Close the app window to end development. Renderer edits update through Vite; res
 | `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on port 5173; close other dev servers first. |
 | `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
 
-The smoke tests use temporary portable folders, supply fake native picker results, close their windows, and save an ignored screenshot at `test-results/portable-config.png`. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
+The smoke tests use temporary portable folders, supply fake native picker results, capture Explorer target paths without opening Explorer, close their windows, and save an ignored screenshot at `test-results/catalog.png`. They exercise scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
 Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
 
-The Phase 3 scanner is in `src/main/library/scanner.ts`. It accepts a root, collection prefix, and a directory-listing function; tests supply in-memory entries. It lists only the root and immediate collection folders, skips links and special entries, and returns either complete discoveries or a failure without partial data. No real filesystem adapter, scan button, persistence, or metadata integration has been added in this phase.
+The Phase 3 scanner is in `src/main/library/scanner.ts`. It accepts a root, collection prefix, and a directory-listing function. It lists only the root and immediate collection folders, skips links and special entries, and returns either complete discoveries or a failure without partial data. Phase 5 connects a real shallow filesystem adapter and manual UI action through a main-process library service.
 
-Phase 4 adds `src/main/database`. `openCatalog(portableBase, relativeLibraryRoot)` opens `data/library.db`, migrates it, and returns a repository with list, reconcile, and close methods. Only complete validated scans change presence; failed scans are skipped. Reconciliation preserves IDs, added dates, bindings, metadata, and manual overrides. It never deletes records. The catalog stores a relative library binding and refuses a different root, including an INI change made outside the app. Phase 5 will connect this service to manual scans and browsing after the single-instance lock is acquired.
+Phase 4 adds `src/main/database`. `openCatalog(portableBase, relativeLibraryRoot)` opens `data/library.db`, migrates it, and returns a repository with list, reconcile, and close methods. Only complete validated scans change presence; failed scans are skipped. Reconciliation preserves IDs, added dates, bindings, metadata, and manual overrides. It never deletes records. The catalog stores a relative library binding and refuses a different root, including an INI change made outside the app. Phase 5 opens existing catalogs after the single-instance lock and creates a new catalog only after a successful manual scan.
 
 `better-sqlite3` 13.0.3 is a runtime dependency; its shipped Windows x64 native binary was verified in Node 24.14.1 and Electron 44.3.0. No rebuild command is needed for these tested versions. Keep the lockfile and use `npm ci`; rerun `npm run test:database:smoke` after Electron or SQLite upgrades. Packaging must still include the native dependency, and packaged verification remains Phase 15.
 
 ## Library setup
 
 Run `npm run dev`, then select **Choose library folder**. Select a folder on the same drive as this checkout, such as a `Games` subfolder or a sibling folder. Selection checks the folder itself but does not enumerate its contents or scan. Cancel leaves configuration unchanged. Use **Retry** after reconnecting an unavailable drive or correcting configuration.
+
+Select **Scan library** to update the catalog, then select a collection or game to view its details. **Open Install Folder** resolves the stored game ID to its current directory in main and asks Windows to open it. Missing, inaccessible, or linked game paths return an error. Missing records remain visible; an unavailable library does not prevent browsing an existing catalog. Startup, Retry, and root selection never scan automatically.
 
 During development and compiled preview, the checkout is the portable base, regardless of the shell's working directory. `config.ini` is created there only after a valid selection. A packaged build will use electron-builder's `PORTABLE_EXECUTABLE_DIR`; it refuses to guess a base if that value is unavailable. Packaged validation remains Phase 15.
 

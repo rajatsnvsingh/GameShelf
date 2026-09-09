@@ -57,7 +57,7 @@ The pure scanner was completed before Phase 4.
 
 ## Phase 4 verification (2026-09-09)
 
-SQLite persistence, migrations, and reconciliation are implemented. Phases 5–16 have not started.
+SQLite persistence, migrations, and reconciliation were completed before Phase 5.
 
 - `npm test`: all 50 tests passed, including 20 database tests. `npm run typecheck`: passed with zero errors/warnings. `npm run test:database:smoke`: production build and compiled repository checks passed in the actual Electron main process.
 - `node scripts/smoke.mjs`: existing library setup, isolation, relocation, and single-instance regression checks passed against the built app.
@@ -66,6 +66,17 @@ SQLite persistence, migrations, and reconciliation are implemented. Phases 5–1
 - `better-sqlite3` 13.0.3 and its shipped Windows x64 native binary work in Node 24.14.1 and Electron 44.3.0. No rebuild dependency or command is needed for the verified setup.
 - Catalogs used for verification are temporary fixtures. The real app still provides library setup only; no automatic database open, real scanner adapter, catalog UI, or provider behavior was added.
 - Portable packaging, actual removable-drive/power-loss failures, and full recovery UX remain scheduled work. The migration runner reports errors and closes the database; it does not attempt a rebuild.
+
+## Phase 5 verification (2026-09-09)
+
+The minimal local catalog workflow is implemented. Phases 6–16 have not started.
+
+- `npm test`: all 65 tests passed. `npm run typecheck`: passed with zero errors/warnings. Production and development Electron smoke checks passed, including builds; the catalog screenshot was visually inspected.
+- The app supports root selection, manual scans, game/collection lists, local details, and **Open Install Folder** by stored game ID. It creates a database only on the first successful scan and reads existing catalogs without an automatic scan.
+- Real filesystem fixtures verify shallow listings, ignored links/files, collection membership, missing/reappearing paths, unavailable-root browsing, stable identity, failed/incomplete scans, detected directory/configuration changes, concurrent requests, shutdown, corrupt databases, and root-binding refusal. IPC rejects malformed IDs and untrusted callers; ordinary views omit provider fields and credentials.
+- Electron checks exercise the UI and actual IPC, SQLite persistence, collection paths, missing-folder errors, restart/relocation, unavailable roots, isolation, and a second process. Fixtures copy the native runtime dependencies beside the compiled app; no real library or provider is used.
+- Native picker responses and `shell.openPath` are replaced in smoke checks: the exact validated Explorer target is verified, but native dialog/Explorer presentation is not automated. Packaged distribution, real removable-drive interruption, and full hardening remain their scheduled milestones.
+- Metadata, artwork, search/filter/sort controls, full Home/Settings screens, and maintenance flows remain later work.
 
 ## Product completion criteria
 

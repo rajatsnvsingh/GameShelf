@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, session, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { APP_INFO_CHANNEL, LIBRARY_STATE_CHANNEL, CHOOSE_ROOT_CHANNEL, type AppInfo } from '../shared/api';
-import { validateNoArgumentRequest } from './ipc';
+import { APP_INFO_CHANNEL, LIBRARY_STATE_CHANNEL, CHOOSE_ROOT_CHANNEL, CATALOG_CHANNEL, SCAN_CHANNEL, OPEN_INSTALL_FOLDER_CHANNEL, type AppInfo } from '../shared/api';
+import { validateNoArgumentRequest, validateGameIdRequest } from './ipc';
 import { portableBase } from './config/paths';
 import { ConfigService } from './config/service';
+import { LibraryService } from './library/service';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const rendererFile = join(directory, '../renderer/index.html');
@@ -21,7 +22,10 @@ if (!app.requestSingleInstanceLock()) {
     window?.focus();
   });
   app.whenReady().then(async () => {
-    const config = new ConfigService(portableBase(app.isPackaged, app.getAppPath(), process.env.PORTABLE_EXECUTABLE_DIR));
+    const base = portableBase(app.isPackaged, app.getAppPath(), process.env.PORTABLE_EXECUTABLE_DIR);
+    const config = new ConfigService(base);
+    const library = new LibraryService(base, config, path => shell.openPath(path));
+    app.on('before-quit', () => library.close());
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
@@ -45,9 +49,12 @@ if (!app.requestSingleInstanceLock()) {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+    function trusted(event: IpcMainInvokeEvent): boolean {
+      return Boolean(window && event.sender === window.webContents &&
+        event.senderFrame === window.webContents.mainFrame && event.senderFrame.url === rendererUrl);
+    }
     function validate(event: IpcMainInvokeEvent, args: unknown[]): void {
-      validateNoArgumentRequest(Boolean(window && event.sender === window.webContents &&
-        event.senderFrame === window.webContents.mainFrame && event.senderFrame.url === rendererUrl), args);
+      validateNoArgumentRequest(trusted(event), args);
     }
     ipcMain.handle(APP_INFO_CHANNEL, (event, ...args: unknown[]): AppInfo => {
       validate(event, args);
@@ -59,13 +66,23 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle(CHOOSE_ROOT_CHANNEL, (event, ...args: unknown[]) => {
       validate(event, args);
-      return config.chooseRoot(async () => {
+      return library.chooseRoot(async () => {
         const result = await dialog.showOpenDialog(window!, {
           title: 'Choose your game library', properties: ['openDirectory', 'dontAddToRecent']
         });
         return result.canceled ? undefined : result.filePaths[0];
       });
     });
+    ipcMain.handle(CATALOG_CHANNEL, (event, ...args: unknown[]) => {
+      validate(event, args);
+      return library.getCatalog();
+    });
+    ipcMain.handle(SCAN_CHANNEL, (event, ...args: unknown[]) => {
+      validate(event, args);
+      return library.scan();
+    });
+    ipcMain.handle(OPEN_INSTALL_FOLDER_CHANNEL, (event, ...args: unknown[]) =>
+      library.openInstallFolder(validateGameIdRequest(trusted(event), args)));
     window.once('ready-to-show', () => window?.show());
     window.on('closed', () => { window = null; });
     await window.loadURL(rendererUrl);

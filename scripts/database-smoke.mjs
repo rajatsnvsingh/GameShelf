@@ -1,16 +1,21 @@
 import { _electron as electron } from 'playwright';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 const base = await mkdtemp(join(tmpdir(), 'gameshelf-native-database-'));
 await mkdir(join(base, 'Games'));
+await cp('out', join(base, 'out'), { recursive: true });
+await writeFile(join(base, 'package.json'), await readFile('package.json'));
+for (const dependency of ['better-sqlite3', 'node-addon-api']) {
+  await cp(join('node_modules', dependency), join(base, 'node_modules', dependency), { recursive: true });
+}
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.ELECTRON_RENDERER_URL;
 try {
-  const application = await electron.launch({ args: [resolve('.')], env });
+  const application = await electron.launch({ args: [base], env });
   try {
     await application.firstWindow();
     const result = await application.evaluate((_electron, { entry, base }) => {
@@ -33,7 +38,7 @@ try {
       const reopened = openCatalog(base, 'Games');
       try { return { initial, afterFailure, reopened: reopened.listGames(), collections: reopened.listCollections() }; }
       finally { reopened.close(); }
-    }, { entry: resolve('out/main/catalog.js'), base });
+    }, { entry: join(base, 'out/main/catalog.js'), base });
     assert.equal(result.initial.length, 1);
     assert.equal(result.initial[0].relativePath, 'Collection_Test/日本語 Game');
     assert.equal(result.initial[0].collectionId, result.collections[0].id);

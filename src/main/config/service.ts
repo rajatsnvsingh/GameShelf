@@ -45,6 +45,13 @@ export class ConfigService {
     validateRootLayout(base, canonical, data);
   }
 
+  // Main-process use only; never expose the full INI or provider credentials to views.
+  async getLibrarySettings(): Promise<{ root: string; relativeRoot: string; collectionPrefix: string } | null> {
+    const ini = await this.read();
+    if (!ini.library.root) return null;
+    return { root: resolveRoot(this.base, ini.library.root), relativeRoot: ini.library.root, collectionPrefix: ini.library.collectionPrefix };
+  }
+
   async getState(): Promise<LibraryState> {
     let ini: Ini;
     try { ini = await this.read(); } catch {
@@ -58,7 +65,7 @@ export class ConfigService {
     try { await this.checkRoot(root); } catch {
       return { status: 'unavailable', root, message: 'The library folder is unavailable or overlaps app data. Reconnect the drive, retry, or choose a valid folder.' };
     }
-    return { status: 'ready', root, message: 'Library folder saved. Scanning will arrive in a later phase.' };
+    return { status: 'ready', root, message: 'Library folder ready. Scan when you want to update the catalog.' };
   }
 
   async chooseRoot(pick: () => Promise<string | undefined>): Promise<LibraryState> {

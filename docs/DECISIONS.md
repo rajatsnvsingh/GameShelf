@@ -43,6 +43,10 @@ Use one dependency-free scanner with an injected immediate-directory listing fun
 
 Use `better-sqlite3` 13.0.3 with its shipped native binary, verified on this Windows x64 machine in both Node and Electron. Use a small repository, consecutive transactional migrations, DELETE journaling, and FULL synchronization. Store normalized case-insensitive path keys separately from literal relative paths. Bind the database to the relative library root and reject silent root changes. Complete scans are reconciled atomically; failed scans do nothing. Defer artwork tables, metadata editing, query-specific indexes/columns, and app wiring to their milestones.
 
+## Phase 5 local catalog workflow
+
+Connect the existing scanner and repository through one main-process library service. Create the database on the first successful manual scan, open existing data for offline browsing, and close it on exit. Use a small collection/game/details interface with transient selection. Resolve **Open Install Folder** from a validated game ID in main and reject missing, non-directory, or linked paths. Automated Electron checks capture the native shell target rather than opening Explorer; no providers or additional dependencies are introduced.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.
