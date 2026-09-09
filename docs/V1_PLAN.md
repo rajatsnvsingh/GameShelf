@@ -10,10 +10,10 @@ Implement in the order below. Each milestone ends with its acceptance checks and
 | 4 | SQLite, migrations, reconciliation | Introduce the repository, versioned migrations, path identity, and transactional reconciliation. Test new/present/missing/reappearing entries, repeat scans, preserved added dates/overrides, and no missing-state updates after incomplete scans. |
 | 5 | Minimal UI + Explorer action | Select root, manually scan, list games/collections, open details, and invoke **Open Install Folder** by game ID. Verify basic catalog operation without network or metadata, correct collection paths, and missing-folder errors. |
 | 6 | Provider abstraction | Define normalized search/detail/artwork contracts and a separate resolver with fake providers. Test confidence/ambiguity handling, disabled providers, errors, and preserved manual matches. No real provider required yet. |
-| 7 | First provider | Implement one provider through the abstraction, with INI credentials, bounded requests, error handling, and normalized metadata. Choose the provider at this milestone; test fixtures plus an optional configured live check. Local use survives authentication/network failure. |
+| 7 | First provider: IGDB | Implement IGDB through the abstraction, with INI credentials, bounded requests, error handling, and normalized metadata. Test fixtures plus an optional configured live check. Local use survives authentication/network failure. |
 | 8 | Matching UI | Add Needs Matching, candidate display, manual search/selection, and persistent provider + record ID binding. Verify ambiguous results remain unresolved and manual bindings survive rescans/restarts. |
-| 9 | Second provider + priority | Add a second provider and configured fallback order. Test order, disabled/misconfigured sources, failure fallback, and manual binding precedence. Do not silently rematch existing bindings when priorities change. |
-| 10 | Artwork cache | Download cover/background artwork through enabled providers and store relative cache references. Verify cached offline rendering, placeholders, interrupted downloads, and no remote image loads from the renderer. |
+| 9 | Second provider + priority | Add TheGamesDB after IGDB in the default configured fallback order. Test order, disabled/misconfigured sources, failure fallback, and manual binding precedence. Do not silently rematch existing bindings when priorities change. |
+| 10 | Artwork cache + SteamGridDB | Add SteamGridDB for supplemental artwork, after IGDB and TheGamesDB in default artwork priority. Download cover/background artwork through enabled providers and store relative cache references. Verify provider fallback, preserved metadata bindings, cached offline rendering, placeholders, interrupted downloads, and no remote image loads from the renderer. |
 | 11 | Manual metadata/artwork | Add editable metadata and custom cover/background images, including clipboard paste. Test field-level override precedence across refresh/restart and explicit replace-all rescrape behavior. |
 | 12 | Polish | Complete Playnite-inspired Home, All Games, Collections, details, and Needs Matching. Add title search, year/collection filters, alphabetical/release-date sorting, collection visibility toggle, keyboard usability, and clear empty/missing/error states. Search still finds collection games when hidden from the main listing. |
 | 13 | Settings | Complete settings UI over the existing INI service: root, collection prefix, collection visibility, provider credentials/enabled state/priority, matching threshold, and default sort. Test persistence and validation; never persist incidental UI state or return stored secrets to ordinary view queries. |
@@ -80,13 +80,22 @@ The minimal local catalog workflow was completed before Phase 6.
 
 ## Phase 6 verification (2026-09-09)
 
-Provider abstraction and the separate resolver are implemented. Phases 7–16 have not started.
+Provider abstraction and the separate resolver were completed before Phase 7.
 
 - `npm test`: all 79 tests passed, including 14 new metadata tests. `npm run typecheck`: passed with zero errors/warnings. `npm run build`: passed. GUI smoke tests were not repeated because this milestone adds isolated modules without changing the running app or IPC.
 - Fake providers verify normalization, result-order independence, confidence thresholds, ambiguous remakes, a close runner-up below threshold, disabled/unconfigured providers, priority/fallback, empty results, search/detail failures, missing/inconsistent details, duplicate/malformed records, safe error outcomes, optional metadata/artwork, and manual/automatic binding preservation without provider calls.
 - The resolver returns proposals only. Existing database tests continue to verify preservation of bindings and overrides during scans. No database migration, credentials, dependencies, network requests, renderer API, or application integration was added.
 - Confidence scores are conservative heuristics rather than measured probabilities. Real-provider accuracy, transport timeouts/rate limits, and optional configured live checks remain Phase 7 and subsequent provider work. Explicit refresh/rematching and matching UI remain later integration work.
 
+## Phase 7 verification (2026-09-09)
+
+The IGDB adapter, main-only INI settings, and optional live check are implemented. Phases 8–16 have not started.
+
+- `npm test`: all 92 tests passed, including 13 IGDB tests. `npm run typecheck`: passed with zero errors/warnings. `npm run test:smoke`: production build and local catalog/isolation/relocation regression checks passed.
+- Fixture checks cover token acquisition/reuse/expiry, bounded 401 retry, rate-limit cooldown, request spacing, timeout/overlap, response size, malformed/partial responses, search escaping, invalid IDs, normalized optional fields/artwork, secret-safe errors, resolver integration, preserved bindings, and INI provider isolation.
+- `npm run test:igdb:live` without `--run` correctly skipped without networking. A credentialed live check has not yet run; real authentication and live response compatibility remain unverified until the user configures and runs the optional check.
+- No dependencies, database schema changes, metadata IPC, automatic enrichment, persisted matches, or artwork downloads were introduced. Existing local operation remains independent of provider availability. Native matching UI/persistence is Phase 8; TheGamesDB is Phase 9.
+
 ## Product completion criteria
 
-A portable Windows build catalogs the specified folder grammar, survives relocation and restart, browses offline, protects manual work, and opens the correct folder. Both providers, manual matching, cached/custom artwork, settings, and explicit maintenance flows work. All applicable checks pass or limitations are clearly recorded. No out-of-scope manager/launcher behavior is included.
+A portable Windows build catalogs the specified folder grammar, survives relocation and restart, browses offline, protects manual work, and opens the correct folder. IGDB and TheGamesDB metadata, supplemental SteamGridDB artwork, manual matching, cached/custom artwork, settings, and explicit maintenance flows work. Other providers are deferred. All applicable checks pass or limitations are clearly recorded. No out-of-scope manager/launcher behavior is included.

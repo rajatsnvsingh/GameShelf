@@ -7,7 +7,7 @@ GameShelf is a Windows-only portable catalog for game installer folders on an ex
 - One user-selected library root. Ask for a root when none is configured or the configured location is unavailable; never assume a directory.
 - Immediate folders are games. Immediate folders prefixed `Collection_` are collections; their immediate child folders are games. Do not scan deeper or inspect game-folder contents.
 - Manual scans reconcile discoveries, add new entries, and mark absent entries missing. Never automatically delete catalog entries or modify game folders.
-- Metadata is optional. Enabled providers run in configurable priority order; only high-confidence matches are accepted automatically. Other entries support manual matching.
+- Metadata is optional. Selected providers are IGDB, then TheGamesDB, then SteamGridDB (supplemental artwork only); other providers are deferred. Enabled providers run in configurable priority order within their capabilities; only high-confidence matches are accepted automatically. Other entries support manual matching.
 - Manual metadata and artwork overrides survive scans and normal refreshes. Only an explicit replace-all rescrape may replace them.
 - Cache covers and backgrounds locally; support custom artwork pasted from the clipboard. Browsing works offline, including without any configured provider.
 
@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–6 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Phase 6 adds independently tested provider contracts and a matching resolver; live metadata, artwork, expanded browsing controls, and portable distribution remain later milestones.
+Phases 1–7 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Provider contracts, a matching resolver, and the IGDB adapter are independently testable. Metadata matching/persistence in the app, artwork, expanded browsing controls, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -54,6 +54,7 @@ Close the app window to end development. Renderer edits update through Vite; res
 | `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
 | `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on port 5173; close other dev servers first. |
 | `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
+| `npm run test:igdb:live -- --run` | Optional IGDB authentication/search/detail check using local INI credentials; no catalog writes. Without `--run`, skips without networking. |
 
 The smoke tests use temporary portable folders, supply fake native picker results, capture Explorer target paths without opening Explorer, close their windows, and save an ignored screenshot at `test-results/catalog.png`. They exercise scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
@@ -77,7 +78,24 @@ The INI stores the library root relative to the portable base, including `../Gam
 
 [config.example.ini](config.example.ini) shows defaults. The small INI format supports named sections, scalar `key=value` entries, blank lines, and full-line `;` or `#` comments. The app writes JSON-quoted string values; forward slashes are easiest for paths. Duplicate sections/keys, malformed lines, unsupported versions, and invalid known settings produce an error without overwriting the original file. Saves preserve unknown scalar settings but normalize formatting and remove comments. Do not edit the file while a folder picker is open.
 
-No real providers are implemented or enabled. `src/main/metadata` defines normalized search, details, and artwork references plus a resolver tested with fake providers. It returns match proposals without writing catalog data or changing existing bindings. The app does not call it yet. Future credentials stay in main-process configuration; ordinary renderer queries never receive them. Defaults for collection visibility, matching threshold, and sort are stored for later integration; they do not enable those features yet.
+`src/main/metadata` defines normalized provider contracts, a resolver, and the IGDB adapter. It returns match proposals without writing catalog data or changing existing bindings. The app does not call it yet; the optional command below tests the actual provider. Credentials stay in main-process configuration; ordinary renderer queries never receive them. Collection visibility, matching UI, and sorting remain later integration work.
+
+## IGDB setup (Phase 7)
+
+Close GameShelf before editing the local `config.ini` beside the app (in development, the repository root). In the existing `[metadata]` section, set `providerOrder="igdb"`. Add the section below, using your Twitch application's Client ID and Client Secret. Do not duplicate existing sections or put credentials in the tracked `config.example.ini`.
+
+```ini
+[provider.igdb]
+enabled="true"
+clientId="YOUR_CLIENT_ID"
+clientSecret="YOUR_CLIENT_SECRET"
+```
+
+IGDB uses Twitch client credentials; the adapter requests an app access token and keeps it in memory only. You do not need to copy an access token into INI. See [IGDB authentication](https://api-docs.igdb.com/#authentication) and [Twitch client credentials](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow).
+
+Run `npm run test:igdb:live -- --run` when ready. It searches for Portal, fetches its details, and prints a safe pass/fail message. It does not scan your library, write matches, or download artwork. Missing/disabled configuration skips the check. Automated tests always use fake responses. IGDB is disabled unless explicitly enabled and listed in providerOrder. TheGamesDB credentials are not needed until Phase 9.
+
+The adapter allows one operation at a time, spaces request starts by at least 300 ms, and applies a 10-second timeout and 2 MiB response limit. It retries an unauthorized API request once with a new token, honors rate-limit cooldowns, and reports other errors for an explicit retry. Searches that fill the 50-result limit are treated as too broad rather than trusting an incomplete candidate set. Release year is normalized; a precise release day is omitted until date precision is established.
 
 Local version control uses Git. INI settings and their backups, `.env` files, databases, artwork/data, logs, dependencies, and build/test output are ignored. Only sanitized `*.example.ini` templates may be tracked; never put real API keys in those examples. Review `git diff --cached` before committing. Git ignore rules do not protect files that were already tracked or explicitly force-added.
 

@@ -51,11 +51,15 @@ Connect the existing scanner and repository through one main-process library ser
 
 Use main-only normalized provider contracts and a dependency-free resolver that returns proposals without persistence. Start conservatively: normalized exact titles score 1, other shared-word scores are capped at 0.89, and the default threshold stays 0.90. Require a 0.10 lead over the runner-up. Preserve all existing bindings without provider calls. Try enabled/configured providers sequentially in supplied priority order and return safe per-provider outcomes for unresolved/error cases. Fake providers validate this contract; actual provider wiring and request controls begin in Phase 7.
 
+## Phase 7 IGDB
+
+Use native fetch without a new dependency. Credentials belong in the ignored `[provider.igdb]` INI section; access tokens are memory-only. Keep one active operation, 300 ms request spacing, 10-second deadlines, 2 MiB responses, one authentication retry, and explicit retry after rate-limit cooldown. Treat a full search page as incomplete. Normalize release year without fabricating date precision. Expose the adapter through the existing contracts and an explicit optional live check; defer matching UI/persistence to Phase 8 and artwork downloads to Phase 10.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.
 - electron-builder is the planned packaging tool; verify persistent portable-base resolution and native dependency bundling.
-- Select the first and second providers during their milestones. IGDB and TheGamesDB were discussed as candidates, not mandatory integrations. Supplemental artwork must use the same enabled-provider boundary.
+- Provider selection is settled: IGDB first (Phase 7), TheGamesDB second (Phase 9), and SteamGridDB third for supplemental artwork (Phase 10). Default priority is IGDB -> TheGamesDB -> SteamGridDB, applied within provider capabilities; SteamGridDB does not replace descriptive metadata. All other providers are deferred. Each provider remains optional and must use the enabled-provider boundary.
 - Tune confidence scoring and ambiguity rules against fixtures. `0.90` was an example starting threshold, not an established accuracy guarantee.
 - Exact schema, IPC method names, package versions, and component filenames are implementation details; preserve the documented contracts.
 

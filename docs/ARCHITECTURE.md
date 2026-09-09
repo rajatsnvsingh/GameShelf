@@ -49,7 +49,7 @@ Keep app data outside the scanned tree; validate root selection accordingly. Do 
 
 Use a single versioned `config.ini` for durable settings: relative root, collection prefix (default `Collection_`), collection-game visibility, provider enabled flags/order/API credentials, matching threshold, and default sort. Provider sections use stable provider IDs. Providers are disabled until configured and enabled by the user.
 
-The previously discussed `0.90` threshold is an initial tuning value, not proof of correctness; validate scoring with ambiguous-title fixtures. Concrete provider choices and credential fields are selected during provider milestones, not imposed by sample configuration.
+The previously discussed `0.90` threshold is an initial tuning value, not proof of correctness; validate scoring with ambiguous-title fixtures. Selected providers are IGDB, TheGamesDB, and SteamGridDB only, in that default priority order. IGDB and TheGamesDB provide metadata; SteamGridDB provides supplemental artwork. Apply priority within supported capabilities, without replacing a metadata binding just to obtain artwork. Other providers are deferred. Concrete credential fields are defined during provider milestones, not imposed by sample configuration.
 
 Plaintext API keys in INI are accepted. Main owns credential storage/use; settings may submit replacements through dedicated IPC, while ordinary responses return redacted status. Do not log secrets. Validate configuration and write updates atomically. Do not persist current search, selection, page, or scroll position; explicit durable defaults are distinct from transient UI state.
 
@@ -124,6 +124,18 @@ The initial heuristic normalizes Unicode composition, case, and whitespace only.
 Disabled/unconfigured providers are skipped, duplicate provider IDs are visited once, and complete candidate sets are ranked independently of result order. Duplicate records are deduplicated; conflicting duplicates or invalid IDs/titles fail that attempt. Low confidence, ambiguity, empty results, missing details, and provider errors permit fallback. Details must agree with the chosen record ID/title. Errors remain distinguishable from no results and omit raw exceptions. The first accepted proposal stops resolution.
 
 Any existing manual or automatic binding bypasses all provider calls, preserving it even when priority, availability, or the folder name changes. The resolver never receives or edits manual overrides. Explicit refresh/rematching and persistence are separate later integration work. Real-provider request timeouts/rate limits, credentials, UI, artwork downloads, and automatic enrichment are not implemented in Phase 6.
+
+## Phase 7 IGDB adapter
+
+`IgdbProvider` implements search/detail contracts with injected fetch/time dependencies for fixtures. It uses fixed Twitch token and IGDB games endpoints with redirects disabled. Twitch credentials are form-encoded in the POST body; API requests use Client-ID and Bearer headers. Tokens stay in memory, expire with a safety margin, and are replaced once after an API 401. See the official [authentication and request contract](https://api-docs.igdb.com/#authentication) and [Twitch form POST example](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-flow-example).
+
+One provider instance handles one operation at a time and rejects overlap without queuing. All request starts are spaced by 300 ms. Fetch and body consumption share a 10-second abort deadline; streamed responses are limited to 2 MiB. HTTP 429 sets a Retry-After cooldown (minimum one second), without automatic retry loops or long sleeps. Errors expose only fixed codes, never response bodies or transport exceptions.
+
+Search strings are length-limited and escaped; detail IDs must be positive safe integers. Search fetches at most 50 records and refuses a full page as incomplete. Normalization validates IDs/titles, omits unavailable optional fields, uses the first release timestamp only for a year, and maps summary, companies, genres, and total rating. Artwork references use validated image IDs and the fixed IGDB image origin; nothing is downloaded or rendered. Requests follow the documented [IGDB fields and image format](https://api-docs.igdb.com/#images).
+
+`ConfigService.getMetadataSettings` reads `[provider.igdb]` enabled/clientId/clientSecret and the existing metadata order/threshold for main-only callers. Provider-specific flag validation is separate from library setup, so an invalid IGDB flag does not block local browsing/scans. `configuredProviders` creates an IGDB entry only when listed in order; missing credentials or enabled=false prevent use. Reuse the instance during an explicit metadata session for shared token/rate state.
+
+The optional `scripts/igdb-live.ts` check resolves configuration relative to its own repository location, requires `--run`, and validates search/details without catalog writes. No provider IPC, automatic scan enrichment, or matching persistence is added; application matching is Phase 8. Other providers remain their scheduled milestones.
 
 ## Artwork and offline behavior
 
