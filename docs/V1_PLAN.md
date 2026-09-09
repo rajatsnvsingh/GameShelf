@@ -89,12 +89,22 @@ Provider abstraction and the separate resolver were completed before Phase 7.
 
 ## Phase 7 verification (2026-09-09)
 
-The IGDB adapter, main-only INI settings, and optional live check are implemented. Phases 8–16 have not started.
+The IGDB adapter, main-only INI settings, and optional live check were completed before Phase 8.
 
 - `npm test`: all 92 tests passed, including 13 IGDB tests. `npm run typecheck`: passed with zero errors/warnings. `npm run test:smoke`: production build and local catalog/isolation/relocation regression checks passed.
 - Fixture checks cover token acquisition/reuse/expiry, bounded 401 retry, rate-limit cooldown, request spacing, timeout/overlap, response size, malformed/partial responses, search escaping, invalid IDs, normalized optional fields/artwork, secret-safe errors, resolver integration, preserved bindings, and INI provider isolation.
-- `npm run test:igdb:live` without `--run` correctly skipped without networking. A credentialed live check has not yet run; real authentication and live response compatibility remain unverified until the user configures and runs the optional check.
+- `npm run test:igdb:live` without `--run` correctly skipped without networking. The subsequent user-authorized credentialed check passed authentication, search, and normalized details after adding igdb to providerOrder. Credentials remained ignored/untracked and no catalog/artwork files changed.
 - No dependencies, database schema changes, metadata IPC, automatic enrichment, persisted matches, or artwork downloads were introduced. Existing local operation remains independent of provider availability. Native matching UI/persistence is Phase 8; TheGamesDB is Phase 9.
+
+## Phase 8 verification (2026-09-09)
+
+Matching UI, automatic enrichment of new discoveries, and persisted provider bindings/metadata are implemented. Phases 9–16 have not started.
+
+- `npm test`: all 102 tests passed, including 10 matching integration/IPC tests. `npm run typecheck`: passed with zero errors/warnings. Production build and production/development Electron smoke checks passed. Catalog and candidate-selection screenshots were visually inspected.
+- Tests verify exact automatic matches, unresolved ambiguity, explicit retry for old records, manual search/selection, latest-search validation, preserved overrides including null clearing, rescan/restart persistence, automatic-overwrite refusal, failed details, provider outages after reconciliation, settings changes/shutdown preventing late writes, and strict IPC payloads.
+- Electron checks use fake main-process HTTP responses with the actual IGDB adapter, resolver, repository, IPC, and UI. They verify automatic/manual matching, metadata display, unresolved ambiguity, provider failure, no renderer provider/artwork requests, and offline persistence after restart/relocation. Tests now use a temporary Chromium profile and an available loopback dev port, allowing a user instance to remain open.
+- No real credentials or user library were used in Phase 8 tests. The Phase 7 live adapter check had already passed; the combined UI workflow was verified with fixtures. No migrations, dependencies, artwork downloads, or second provider were added.
+- Matching remains sequential, with per-game retry/search for existing unresolved entries. Artwork, broader UI polish, and bulk maintenance remain scheduled work.
 
 ## Product completion criteria
 

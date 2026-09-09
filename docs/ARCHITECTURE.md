@@ -137,6 +137,18 @@ Search strings are length-limited and escaped; detail IDs must be positive safe 
 
 The optional `scripts/igdb-live.ts` check resolves configuration relative to its own repository location, requires `--run`, and validates search/details without catalog writes. No provider IPC, automatic scan enrichment, or matching persistence is added; application matching is Phase 8. Other providers remain their scheduled milestones.
 
+## Phase 8 matching integration
+
+`LibraryService` coordinates metadata with its existing operation lock and repository. Successful manual scans reconcile locally before provider work; only IDs added in that scan are passed to the resolver. Existing entries are preserved, including unresolved entries. Provider errors stop further enrichment for that scan and return a warning alongside the saved local catalog. Explicit per-game automatic matching handles retries for existing unresolved entries.
+
+Main-only provider sessions retain tokens and rate state while INI metadata settings remain unchanged. Search/selection and automatic matching check the game against the bound catalog; root/configuration changes and shutdown invalidate in-flight results before writes. Manual search caches only its latest game, settings snapshot, and candidates in memory. Selection must refer to that search, fetch matching details from an enabled/configured provider, and validate the record before saving. No renderer-supplied metadata is accepted.
+
+Typed `autoMatch(gameId)`, `searchMatches(gameId, query)`, and `selectMatch(gameId, providerId, recordId)` IPC validates trusted frames, exact arguments, IDs, and query bounds. Candidates expose only provider/record IDs, title, and optional year. Catalog DTOs add binding status and allowlisted metadata. Remote artwork URLs, raw provider objects, and credentials never reach these views. Svelte renders metadata as text.
+
+`CatalogRepository.saveMatch` uses the existing schema in one SQL update. It stores binding source/provider/record/confidence and allowlisted metadata while preserving manual overrides and all path/presence/date fields. Automatic saves apply only to unbound unmatched games; manual selection is an explicit replacement. Failed retrieval never clears existing data. Display applies manual fields over provider values, including explicit null clearing. Artwork persistence and general metadata refresh/editing remain later work.
+
+The renderer adds Needs Matching, per-game automatic matching, candidate search/selection, and available metadata in details. Navigation, query text, and candidates remain transient. Matching operations are sequential; scanning/matching buttons wait for completion, while the current catalog can still be navigated. Tests use the real adapter with fake main-process fetch responses, plus temporary SQLite/filesystem fixtures; the production app contains no test-provider switch.
+
 ## Artwork and offline behavior
 
 Store covers/backgrounds under `data/artwork`, with database references. Precedence is **manual artwork > cached provider artwork > bundled placeholder**. Clipboard paste reads image data only on a user action, validates/decodes it, and writes a local asset. Normal refresh and cache maintenance must protect manual assets.

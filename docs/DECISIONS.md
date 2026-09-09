@@ -55,6 +55,10 @@ Use main-only normalized provider contracts and a dependency-free resolver that 
 
 Use native fetch without a new dependency. Credentials belong in the ignored `[provider.igdb]` INI section; access tokens are memory-only. Keep one active operation, 300 ms request spacing, 10-second deadlines, 2 MiB responses, one authentication retry, and explicit retry after rate-limit cooldown. Treat a full search page as incomplete. Normalize release year without fabricating date precision. Expose the adapter through the existing contracts and an explicit optional live check; defer matching UI/persistence to Phase 8 and artwork downloads to Phase 10.
 
+## Phase 8 matching workflow
+
+Save the local scan before enriching newly discovered games only. Keep existing unresolved entries for an explicit per-game retry. Stop automatic enrichment on provider failure and preserve local discoveries. Manual search does not save; selection retrieves details, then writes the binding and metadata atomically. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.

@@ -6,6 +6,8 @@ import { validateNoArgumentRequest, validateGameIdRequest } from './ipc';
 import { portableBase } from './config/paths';
 import { ConfigService } from './config/service';
 import { LibraryService } from './library/service';
+import { AUTO_MATCH_CHANNEL, SEARCH_MATCHES_CHANNEL, SELECT_MATCH_CHANNEL } from '../shared/api';
+import { validateSearchRequest, validateSelectionRequest } from './ipc';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const rendererFile = join(directory, '../renderer/index.html');
@@ -83,6 +85,12 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle(OPEN_INSTALL_FOLDER_CHANNEL, (event, ...args: unknown[]) =>
       library.openInstallFolder(validateGameIdRequest(trusted(event), args)));
+    ipcMain.handle(AUTO_MATCH_CHANNEL, (event, ...args: unknown[]) =>
+      library.autoMatch(validateGameIdRequest(trusted(event), args)));
+    ipcMain.handle(SEARCH_MATCHES_CHANNEL, (event, ...args: unknown[]) =>
+      library.searchMatches(...validateSearchRequest(trusted(event), args)));
+    ipcMain.handle(SELECT_MATCH_CHANNEL, (event, ...args: unknown[]) =>
+      library.selectMatch(...validateSelectionRequest(trusted(event), args)));
     window.once('ready-to-show', () => window?.show());
     window.on('closed', () => { window = null; });
     await window.loadURL(rendererUrl);

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { CatalogView, LibraryState } from '../../shared/api';
+  import type { CatalogView, LibraryState, MatchCandidate } from '../../shared/api';
 
   let version = $state('');
   let library = $state<LibraryState>();
@@ -9,14 +9,49 @@
   let notice = $state('');
   let collectionId = $state<number | null>(null);
   let selectedId = $state<number | null>(null);
+  let needsMatching = $state(false);
+  let query = $state('');
+  let candidates = $state<MatchCandidate[]>([]);
+  let candidateGameId = $state<number | null>(null);
   const collection = $derived(catalog.collections.find(item => item.id === collectionId));
-  const games = $derived(catalog.games.filter(game => collectionId === null || game.collectionId === collectionId));
+  const games = $derived(catalog.games.filter(game => (!needsMatching || game.matchStatus === 'unmatched') && (collectionId === null || game.collectionId === collectionId)));
   const selected = $derived(catalog.games.find(game => game.id === selectedId));
   const collectionName = (id: number | null) => {
     const item = catalog.collections.find(item => item.id === id);
     return item ? item.displayName || item.folderName : 'None';
   };
   const date = (value: string) => new Date(value).toLocaleString();
+  function selectGame(id: number) {
+    selectedId = id;
+    query = catalog.games.find(game => game.id === id)?.folderName ?? '';
+    candidates = []; candidateGameId = null;
+  }
+
+  async function match(automatic: boolean, candidate?: MatchCandidate) {
+    if (!selected) return;
+    const id = selected.id;
+    busy = true;
+    notice = automatic ? 'Finding a confident match…' : 'Retrieving and saving metadata…';
+    try {
+      const result = automatic ? await window.gameShelf.autoMatch(id)
+        : await window.gameShelf.selectMatch(id, candidate!.providerId, candidate!.recordId);
+      if (result.ok) { catalog = result.value; candidates = []; candidateGameId = null; }
+      notice = result.message ?? 'Match saved.';
+    } catch { notice = 'Matching failed. Please retry.'; }
+    finally { busy = false; }
+  }
+
+  async function searchMatches() {
+    if (!selected) return;
+    const id = selected.id;
+    busy = true; candidates = []; candidateGameId = null; notice = 'Searching metadata providers…';
+    try {
+      const result = await window.gameShelf.searchMatches(id, query);
+      if (result.ok && selectedId === id) { candidates = result.value.candidates; candidateGameId = id; }
+      notice = result.message ?? '';
+    } catch { notice = 'Search failed. Please retry.'; }
+    finally { busy = false; }
+  }
 
   async function refresh(choose = false) {
     busy = true;
@@ -32,7 +67,8 @@
 
   async function scan() {
     busy = true;
-    notice = 'Scanning library…';
+    notice = 'Scanning library, then matching newly discovered games…';
+    candidates = []; candidateGameId = null;
     try {
       const result = await window.gameShelf.scanLibrary();
       if (result.ok) catalog = result.value;
@@ -78,11 +114,13 @@
   <div class="catalog" aria-busy={busy}>
     <nav aria-label="Collections">
       <h2>Collections</h2>
-      <button class:active={collectionId === null} aria-pressed={collectionId === null}
-        onclick={() => { collectionId = null; selectedId = null; }}>All games <span>{catalog.games.length}</span></button>
+      <button class:active={collectionId === null && !needsMatching} aria-pressed={collectionId === null && !needsMatching}
+        onclick={() => { needsMatching = false; collectionId = null; selectedId = null; }}>All games <span>{catalog.games.length}</span></button>
+      <button class:active={needsMatching} aria-pressed={needsMatching}
+        onclick={() => { needsMatching = true; collectionId = null; selectedId = null; }}>Needs Matching <span>{catalog.games.filter(game => game.matchStatus === 'unmatched').length}</span></button>
       {#each catalog.collections as item (item.id)}
         <button class:active={collectionId === item.id} aria-pressed={collectionId === item.id}
-          onclick={() => { collectionId = item.id; selectedId = null; }}>
+          onclick={() => { needsMatching = false; collectionId = item.id; selectedId = null; }}>
           {item.displayName || item.folderName}
           <span>{catalog.games.filter(game => game.collectionId === item.id).length}</span>
           {#if item.missing}<small class="missing">Missing</small>{/if}
@@ -92,14 +130,15 @@
     </nav>
 
     <section class="game-list" aria-label="Games">
-      <h2>{collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2>
+      <h2>{needsMatching ? 'Needs Matching' : collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2>
       {#if games.length === 0}
-        <p class="empty">{collection ? 'This collection has no cataloged games.' : 'No games yet. Choose your folder, then select Scan library.'}</p>
+        <p class="empty">{needsMatching ? 'No games need matching.' : collection ? 'This collection has no cataloged games.' : 'No games yet. Choose your folder, then select Scan library.'}</p>
       {:else}
         <ul>
           {#each games as game (game.id)}
-            <li><button class:active={selectedId === game.id} aria-pressed={selectedId === game.id} onclick={() => { selectedId = game.id; }}>
-              <strong>{game.folderName}</strong>
+            <li><button class:active={selectedId === game.id} aria-pressed={selectedId === game.id} onclick={() => selectGame(game.id)}>
+              <strong>{game.metadata.title || game.folderName}</strong>
+              {#if game.matchStatus === 'unmatched'}<small>Needs matching</small>{/if}
               {#if game.collectionId !== null}<small>{collectionName(game.collectionId)}</small>{/if}
               {#if game.missing}<small class="missing">Missing</small>{/if}
             </button></li>
@@ -110,15 +149,39 @@
 
     <section class="details" aria-label="Game details">
       {#if selected}
-        <h2>{selected.folderName}</h2>
+        <h2>{selected.metadata.title || selected.folderName}</h2>
+        <button class="primary" disabled={busy} onclick={openFolder}>Open Install Folder</button>
+        {#if selected.metadata.description}<p class="description">{selected.metadata.description}</p>{/if}
         <dl>
+          <dt>Metadata match</dt><dd>{selected.matchStatus === 'matched' ? `${selected.bindingSource} · ${selected.providerId} · ${selected.providerRecordId}` : 'Needs matching'}</dd>
+          {#if selected.metadata.releaseYear}<dt>Release year</dt><dd>{selected.metadata.releaseYear}</dd>{/if}
+          {#if selected.metadata.developers?.length}<dt>Developer</dt><dd>{selected.metadata.developers.join(', ')}</dd>{/if}
+          {#if selected.metadata.publishers?.length}<dt>Publisher</dt><dd>{selected.metadata.publishers.join(', ')}</dd>{/if}
+          {#if selected.metadata.genres?.length}<dt>Genres</dt><dd>{selected.metadata.genres.join(', ')}</dd>{/if}
+          {#if selected.metadata.rating !== undefined}<dt>Rating</dt><dd>{selected.metadata.rating} / 100</dd>{/if}
           <dt>Status</dt><dd>{selected.missing ? 'Missing at last scan' : 'Present at last scan'}</dd>
           <dt>Folder within library</dt><dd class="path">{selected.relativePath}</dd>
           <dt>Collection</dt><dd>{collectionName(selected.collectionId)}</dd>
           <dt>Added</dt><dd>{date(selected.addedAt)}</dd>
           <dt>Last seen</dt><dd>{date(selected.lastSeenAt)}</dd>
         </dl>
-        <button class="primary" disabled={busy} onclick={openFolder}>Open Install Folder</button>
+        <section class="matching" aria-label="Metadata matching">
+          <h3>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</h3>
+          {#if selected.matchStatus === 'unmatched'}<button disabled={busy} onclick={() => match(true)}>Match automatically</button>{/if}
+          <form onsubmit={event => { event.preventDefault(); void searchMatches(); }}>
+            <label for="match-query">Search title</label>
+            <input id="match-query" bind:value={query} maxlength="250" disabled={busy} required />
+            <button disabled={busy || !query.trim()}>Search candidates</button>
+          </form>
+          {#if candidateGameId === selected.id}
+            <ul aria-label="Match candidates">
+              {#each candidates as candidate (`${candidate.providerId}:${candidate.recordId}`)}
+                <li><p>{candidate.title}{candidate.releaseYear ? ` (${candidate.releaseYear})` : ''}<small>{candidate.providerId} · {candidate.recordId}</small></p>
+                  <button disabled={busy} onclick={() => match(false, candidate)}>Use this match</button></li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
       {:else}
         <h2>Game details</h2>
         <p class="muted">Select a game to see its folder and open it in Explorer.</p>
@@ -162,6 +225,12 @@
   dt { color: #a5b0c6; font-size: 12px; margin-top: 14px; }
   dd { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
   .details button { margin-top: 8px; }
+  .description { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .matching { border-top: 1px solid #394154; margin-top: 20px; padding-top: 8px; }
+  .matching h3 { font-size: 15px; }
+  .matching label { display: block; margin: 16px 0 6px; font-size: 13px; }
+  .matching input { width: 100%; padding: 8px; background: #171b24; color: #edf0f6; border: 1px solid #566380; border-radius: 4px; }
+  .matching li { margin-top: 12px; border-top: 1px solid #394154; padding-top: 8px; }
   @media (max-width: 850px) {
     .catalog { grid-template-columns: 150px minmax(0, 1fr); }
     .details { grid-column: 1 / -1; }

@@ -12,6 +12,7 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.ELECTRON_RENDERER_URL;
 const fixture = await mkdtemp(join(tmpdir(), 'gameshelf-smoke-'));
+const profileArgument = `--user-data-dir=${join(fixture, 'chromium-profile')}`;
 let appDirectory = join(fixture, 'Portable 日本語');
 await mkdir(appDirectory);
 await cp('out', join(appDirectory, 'out'), { recursive: true });
@@ -27,22 +28,22 @@ await writeFile(join(appDirectory, gamesName, 'setup.exe'), 'fixture only');
 let savedCatalog;
 const server = process.argv.includes('--dev') ? await createServer({
   configFile: false, root: 'src/renderer', plugins: [svelte()],
-  server: { host: '127.0.0.1', port: 5173, strictPort: true }
+  server: { host: '127.0.0.1', port: 0 }
 }) : undefined;
 if (server) {
   await server.listen();
   // Deliberately omit the trailing slash to exercise Electron URL normalization.
-  env.ELECTRON_RENDERER_URL = 'http://127.0.0.1:5173';
+  env.ELECTRON_RENDERER_URL = server.resolvedUrls.local[0].replace(/\/$/, '');
 }
 try {
-  const application = await electron.launch({ args: [appDirectory], cwd: tmpdir(), env });
+  const application = await electron.launch({ args: [appDirectory, profileArgument], cwd: tmpdir(), env });
   try {
     const page = await application.firstWindow();
     const errors = [];
     const externalRequests = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => {
-      if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173/')) externalRequests.push(request.url());
+      if (/^https?:/.test(request.url()) && !(env.ELECTRON_RENDERER_URL && request.url().startsWith(`${env.ELECTRON_RENDERER_URL}/`))) externalRequests.push(request.url());
     });
     await page.getByRole('heading', { name: 'GameShelf', exact: true }).waitFor();
     await page.getByText('Version 0.1.0', { exact: true }).waitFor();
@@ -55,7 +56,7 @@ try {
     }));
     assert.equal(state.require, 'undefined');
     assert.equal(state.process, 'undefined');
-    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder']);
+    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'searchMatches', 'selectMatch']);
     assert.deepEqual(state.info, { name: 'GameShelf', version: '0.1.0' });
     const preferences = await application.evaluate(async ({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -77,16 +78,35 @@ try {
     }, join(appDirectory, gamesName));
     await page.getByRole('button', { name: 'Choose library folder' }).click();
     await page.getByRole('heading', { name: 'Library ready', exact: true }).waitFor();
-    const saved = await readFile(join(appDirectory, 'config.ini'), 'utf8');
+    let saved = await readFile(join(appDirectory, 'config.ini'), 'utf8');
     assert.ok(saved.includes(`root="${gamesName}"`));
     assert.ok(!saved.includes(appDirectory));
     await assert.rejects(readFile(join(appDirectory, 'data', 'library.db')), { code: 'ENOENT' });
+    saved = saved.replace('providerOrder=""', 'providerOrder="igdb"') + '\n[provider.igdb]\nenabled="true"\nclientId="fixture-client"\nclientSecret="fixture-secret"\n';
+    await writeFile(join(appDirectory, 'config.ini'), saved);
+    // Fake only the main-process HTTP transport: exercise the real IGDB adapter/resolver/IPC.
+    await application.evaluate(() => {
+      globalThis.fixtureProviderCalls = [];
+      globalThis.fetch = async (url, init) => {
+        globalThis.fixtureProviderCalls.push(String(url));
+        if (globalThis.fixtureProviderOffline) throw new Error('fixture-secret');
+        if (String(url) === 'https://id.twitch.tv/oauth2/token') return new Response(JSON.stringify({ access_token: 'fixturetoken', expires_in: 3600, token_type: 'bearer' }));
+        if (String(url) !== 'https://api.igdb.com/v4/games') throw new Error('Unexpected fixture request');
+        const body = String(init.body);
+        const game = id => ({ id, name: id === 1 ? 'Game A' : 'Game B 日本語', summary: 'Fixture metadata description', first_release_date: 946684800 });
+        const id = /where id = (\d+)/.exec(body)?.[1];
+        const results = id ? [game(Number(id))] : body.includes('Game A') ? [game(1)] : body.includes('Corrected title') ? [game(3)] : [game(2), game(3)];
+        return new Response(JSON.stringify(results));
+      };
+    });
     await page.getByRole('button', { name: 'Scan library', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Scan complete: 2 games and 2 collections' }).waitFor();
     const firstCatalog = await page.evaluate(() => window.gameShelf.getCatalog());
     assert.equal(firstCatalog.ok, true);
     assert.equal(firstCatalog.value.games.length, 2);
+    assert.equal(firstCatalog.value.games.find(game => game.folderName === 'Game A').bindingSource, 'automatic');
     const originalMember = firstCatalog.value.games.find(game => game.folderName === 'Game B 日本語');
+    assert.equal(originalMember.matchStatus, 'unmatched');
     await page.getByRole('navigation', { name: 'Collections' }).getByRole('button', { name: /Favorites/ }).click();
     await page.getByRole('region', { name: 'Games', exact: true }).getByRole('button', { name: /Game B 日本語/ }).click();
     await page.getByRole('region', { name: 'Game details' }).getByText('Collection_Favorites/Game B 日本語', { exact: true }).waitFor();
@@ -107,6 +127,31 @@ try {
     await rename(join(fixture, 'Absent Member'), memberPath);
     await page.getByRole('button', { name: 'Scan library', exact: true }).click();
     await page.getByRole('region', { name: 'Game details' }).getByText('Present at last scan', { exact: true }).waitFor();
+    await page.getByRole('navigation', { name: 'Collections' }).getByRole('button', { name: /Needs Matching/ }).click();
+    await page.getByRole('region', { name: 'Games', exact: true }).getByRole('button', { name: /Game B 日本語/ }).click();
+    await page.getByRole('button', { name: 'Match automatically', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'No confident unique match' }).waitFor();
+    await page.getByLabel('Search title', { exact: true }).fill('Corrected title');
+    await page.getByRole('button', { name: 'Search candidates', exact: true }).click();
+    await page.getByRole('button', { name: 'Use this match', exact: true }).waitFor();
+    await page.screenshot({ path: resolve('test-results/matching.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Use this match', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Manual match saved' }).waitFor();
+    await page.getByText('Fixture metadata description', { exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Games', exact: true }).getByText('No games need matching.', { exact: true }).waitFor();
+    const matched = await page.evaluate(() => window.gameShelf.getCatalog());
+    assert.equal(matched.value.games.find(game => game.id === originalMember.id).bindingSource, 'manual');
+    assert.equal(matched.value.games.find(game => game.id === originalMember.id).providerRecordId, '3');
+    assert.ok(!JSON.stringify(matched).includes('fixture-secret'));
+    assert.ok(!JSON.stringify(matched).includes('https://'));
+    await application.evaluate(() => { globalThis.fixtureProviderOffline = true; });
+    await page.getByRole('button', { name: 'Search candidates', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'provider requests failed' }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.gameShelf.getCatalog()), matched);
+    const callCount = await application.evaluate(() => globalThis.fixtureProviderCalls.length);
+    await page.getByRole('button', { name: 'Scan library', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Scan complete:' }).waitFor();
+    assert.equal(await application.evaluate(() => globalThis.fixtureProviderCalls.length), callCount);
     savedCatalog = await page.evaluate(() => window.gameShelf.getCatalog());
     assert.equal(savedCatalog.value.games.find(game => game.id === originalMember.id).addedAt, originalMember.addedAt);
     assert.equal(await readFile(join(appDirectory, 'config.ini'), 'utf8'), saved);
@@ -119,7 +164,7 @@ try {
       app.once('second-instance', () => resolve(true));
       setTimeout(() => resolve(false), 10000);
     }));
-    const child = spawn(executable, [appDirectory], { env, cwd: tmpdir(), windowsHide: true, stdio: 'ignore' });
+    const child = spawn(executable, [appDirectory, profileArgument], { env, cwd: tmpdir(), windowsHide: true, stdio: 'ignore' });
     const timer = setTimeout(() => child.kill(), 15000);
     try {
       const [code] = await once(child, 'exit');
@@ -138,7 +183,7 @@ try {
   const relocated = join(fixture, 'Relocated 日本語');
   await rename(appDirectory, relocated);
   appDirectory = relocated;
-  const restarted = await electron.launch({ args: [appDirectory], cwd: tmpdir(), env });
+  const restarted = await electron.launch({ args: [appDirectory, profileArgument], cwd: tmpdir(), env });
   try {
     const page = await restarted.firstWindow();
     await page.getByRole('heading', { name: 'Library ready', exact: true }).waitFor();
@@ -153,7 +198,8 @@ try {
     const failedScan = await page.evaluate(() => window.gameShelf.scanLibrary());
     assert.equal(failedScan.ok, false);
     assert.deepEqual(await page.evaluate(() => window.gameShelf.getCatalog()), savedCatalog);
-    console.log('PASS: local scan, collection details, validated folder action, missing/reappearing entries, offline restart/relocation, isolation, and single instance.');
+    assert.equal(savedCatalog.value.games.find(game => game.folderName === 'Game B 日本語').bindingSource, 'manual');
+    console.log('PASS: automatic and manual matching, ambiguity, provider failure, local scan, folder action, offline restart/relocation, isolation, and single instance.');
   } finally { await restarted.close(); }
 } finally {
   await server?.close();

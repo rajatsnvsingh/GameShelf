@@ -12,3 +12,15 @@ export async function configuredProviders(config: ConfigService): Promise<{ prov
   }
   return { providers, threshold: settings.threshold };
 }
+
+/** Preserve the provider's token and rate state until INI metadata settings change. */
+export function providerSession(config: ConfigService): typeof load {
+  let key = '';
+  let session: Awaited<ReturnType<typeof configuredProviders>> | undefined;
+  async function load() {
+    const next = JSON.stringify(await config.getMetadataSettings());
+    if (!session || key !== next) { session = await configuredProviders(config); key = next; }
+    return session;
+  }
+  return load;
+}

@@ -1,6 +1,8 @@
 import type Database from 'better-sqlite3';
 import type { ScanResult } from '../library/scanner.ts';
 import { catalogPath, validateDiscoveries } from './identity.ts';
+import type { GameDetails, ProviderBinding } from '../metadata/provider.ts';
+import { displayMetadata } from '../metadata/display.ts';
 
 export interface CollectionRecord {
   id: number;
@@ -87,6 +89,22 @@ export class CatalogRepository {
       }
     })();
     return 'applied';
+  }
+
+  saveMatch(gameId: number, binding: ProviderBinding, details: GameDetails): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !/^[a-z][a-z0-9-]*$/.test(binding.providerId) ||
+      !binding.providerRecordId || binding.providerRecordId !== details.recordId || !details.title?.trim() ||
+      !['manual', 'automatic'].includes(binding.source) ||
+      (binding.source === 'automatic' && (binding.confidence === null || !Number.isFinite(binding.confidence) || binding.confidence < 0 || binding.confidence > 1))) {
+      throw new Error('Invalid match.');
+    }
+    // Manual overrides and all filesystem identity/presence fields remain untouched.
+    const result = this.db.prepare(`UPDATE games SET match_status = 'matched', binding_source = ?,
+      provider_id = ?, provider_record_id = ?, confidence = ?, provider_metadata = ?
+      WHERE id = ? AND (? = 'manual' OR (match_status = 'unmatched' AND provider_id IS NULL))`)
+      .run(binding.source, binding.providerId, binding.providerRecordId, binding.source === 'manual' ? null : binding.confidence,
+        JSON.stringify(displayMetadata({ ...details })), gameId, binding.source);
+    return result.changes === 1;
   }
 
   close(): void { this.db.close(); }

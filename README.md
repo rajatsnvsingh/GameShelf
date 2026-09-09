@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–7 are implemented. Select a library, scan manually, browse games and collections, inspect local details, and use **Open Install Folder**. SQLite preserves the catalog across restarts and relocation. Provider contracts, a matching resolver, and the IGDB adapter are independently testable. Metadata matching/persistence in the app, artwork, expanded browsing controls, and portable distribution remain later milestones.
+Phases 1–8 are implemented. Select a library, scan manually, browse games and collections, match metadata through IGDB, and use **Open Install Folder**. SQLite preserves the catalog and matches across restarts and relocation. Artwork, additional providers, expanded browsing controls, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -52,11 +52,11 @@ Close the app window to end development. Renderer edits update through Vite; res
 | `npm run build` | Compile main, preload, and renderer into `out/`; does not package a portable executable. |
 | `npm start` | Open the compiled app after a build. |
 | `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
-| `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on port 5173; close other dev servers first. |
+| `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on an available port. |
 | `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
 | `npm run test:igdb:live -- --run` | Optional IGDB authentication/search/detail check using local INI credentials; no catalog writes. Without `--run`, skips without networking. |
 
-The smoke tests use temporary portable folders, supply fake native picker results, capture Explorer target paths without opening Explorer, close their windows, and save an ignored screenshot at `test-results/catalog.png`. They exercise scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
+The smoke tests use temporary portable folders and an isolated Chromium profile, supply fake picker and IGDB HTTP responses, capture Explorer target paths without opening Explorer, and close their windows. Ignored screenshots are saved at `test-results/catalog.png` and `test-results/matching.png`. Checks cover matching, provider failure, scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
 Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
 
@@ -78,7 +78,15 @@ The INI stores the library root relative to the portable base, including `../Gam
 
 [config.example.ini](config.example.ini) shows defaults. The small INI format supports named sections, scalar `key=value` entries, blank lines, and full-line `;` or `#` comments. The app writes JSON-quoted string values; forward slashes are easiest for paths. Duplicate sections/keys, malformed lines, unsupported versions, and invalid known settings produce an error without overwriting the original file. Saves preserve unknown scalar settings but normalize formatting and remove comments. Do not edit the file while a folder picker is open.
 
-`src/main/metadata` defines normalized provider contracts, a resolver, and the IGDB adapter. It returns match proposals without writing catalog data or changing existing bindings. The app does not call it yet; the optional command below tests the actual provider. Credentials stay in main-process configuration; ordinary renderer queries never receive them. Collection visibility, matching UI, and sorting remain later integration work.
+`src/main/metadata` defines normalized provider contracts, a resolver, and the IGDB adapter. Phase 8 connects their results to SQLite and the matching interface. Credentials stay in main-process configuration; ordinary renderer queries never receive them. Collection visibility and expanded sorting remain later work.
+
+## Matching metadata (Phase 8)
+
+With IGDB configured, **Scan library** saves discoveries first, then attempts automatic matching only for newly added games. Exact, unambiguous results are saved; ambiguous or unsuccessful results remain in **Needs Matching**. Existing records are never implicitly rematched by scanning. Provider failure leaves the local scan intact and stops further automatic requests for that scan.
+
+For games already in your catalog, open **Needs Matching**, select a game, and choose **Match automatically**. If needed, edit **Search title**, choose **Search candidates**, then **Use this match** beside the correct title/year. Searching alone changes nothing. The selected record's details are fetched before its provider/record ID and metadata are saved. A matched game's **Change match** controls allow an explicit new selection; a failed request keeps the old match.
+
+Titles, descriptions, release years, companies, genres, and ratings appear when available and remain readable offline. Manual bindings and overrides survive scans and restarts. Artwork is not downloaded or displayed yet. Provider work runs sequentially; wait for the current operation before scanning or matching again. Startup and Retry never trigger metadata requests.
 
 ## IGDB setup (Phase 7)
 
