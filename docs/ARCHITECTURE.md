@@ -66,6 +66,12 @@ Input: root plus collection prefix and an injected directory-listing adapter. Ou
 
 Do not detect executables, archives, installers, DLC, editions, or installed state. Empty game folders count; empty collections remain collections. Use game folder names literally as initial titles/search terms; elaborate cleanup and rename detection are out of scope. Do not traverse directory links outside the root or allow them to increase scan depth. Keep unusual-folder policy simple rather than inferring content semantics.
 
+Phase 3 implements `scanLibrary({ root, collectionPrefix }, listDirectory)` in `src/main/library/scanner.ts`, with no imports or runtime dependencies. The adapter receives the absolute root separately from a relative directory (`''` for root, otherwise a single collection folder name). It must return a complete immediate listing or throw, distinguish directories/files/links/other entries without following links, and preserve literal entry names. The real filesystem adapter is deferred until application integration; fixtures supply all listings for this milestone.
+
+The scanner skips links (including junctions) and special entries at both levels. Prefix matching is exact and case-sensitive. A prefix-only collection keeps an empty display name after prefix removal. Output uses forward-slash relative paths and nullable collection paths for game membership. Root entries and final results use ordinal string ordering, independent of locale or adapter order; listing arrays are not mutated. Unsafe entry names or duplicate case-insensitive sibling names fail the scan rather than producing ambiguous paths.
+
+`ScanResult` is a discriminated union: `complete` contains games/collections; `failed` contains only an error code and the relative directory where it occurred. The scanner stops on the first failure and discards all partial discoveries. Raw adapter exceptions are not exposed. A future reconciliation consumer must accept only complete results; a failed result cannot be interpreted as an empty library.
+
 ## Persistence and reconciliation
 
 Use SQLite with ordered, transactional migrations recorded in `schema_migrations`. `better-sqlite3` is preferred pending packaged native-module validation. Keep the schema small for approximately 50–100 games:

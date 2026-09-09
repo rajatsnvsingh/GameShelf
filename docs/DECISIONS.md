@@ -35,6 +35,10 @@ Phase 1 tooling: npm with exact dependency versions and `package-lock.json`; ele
 
 Phase 2 uses a strict scalar INI format with atomic replacement and no new dependency. The checkout is the unpackaged base; packaged builds require the portable launcher's directory. Same-drive sibling libraries are supported through relative paths. Missing config remains in memory until the user selects a valid root; invalid config is never silently reset. Collection games default to visible and sorting defaults to title. `0.90` is stored as an initial threshold only, pending fixture-based matching work.
 
+## Phase 3 scanner
+
+Use one dependency-free scanner with an injected immediate-directory listing function. Match collection prefixes exactly, sort by ordinal relative path, preserve literal names, and skip all links/junctions and special entries. Reject unsafe names and duplicate case-insensitive sibling names. On any listing failure, return no partial discoveries. The filesystem adapter and app wiring remain later integration work.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is the preferred SQLite driver; validate compatibility with the selected Electron version and packaged Windows build.

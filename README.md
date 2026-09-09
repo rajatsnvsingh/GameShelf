@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–2 are implemented: a minimal Svelte window, sandboxed Electron renderer, narrow typed bridge, portable INI configuration, library folder selection, and single-instance behavior. Scanning, catalog persistence, metadata, and portable distribution are later milestones.
+Phases 1–3 are implemented: a minimal Svelte window, sandboxed Electron renderer, narrow typed bridge, portable INI configuration, library folder selection, single-instance behavior, and a pure scanner tested with injected listings. The scanner is not wired into the app yet. Catalog persistence, manual scan UI, metadata, and portable distribution are later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -48,7 +48,7 @@ Close the app window to end development. Renderer edits update through Vite; res
 | Command | Purpose |
 | --- | --- |
 | `npm run typecheck` | Check main/preload/shared TypeScript and Svelte renderer types. |
-| `npm test` | Run configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
+| `npm test` | Run scanner, configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
 | `npm run build` | Compile main, preload, and renderer into `out/`; does not package a portable executable. |
 | `npm start` | Open the compiled app after a build. |
 | `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
@@ -57,6 +57,8 @@ Close the app window to end development. Renderer edits update through Vite; res
 The smoke tests use temporary portable folders, supply fake native picker results, close their windows, and save an ignored screenshot at `test-results/portable-config.png`. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
 Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
+
+The Phase 3 scanner is in `src/main/library/scanner.ts`. It accepts a root, collection prefix, and a directory-listing function; tests supply in-memory entries. It lists only the root and immediate collection folders, skips links and special entries, and returns either complete discoveries or a failure without partial data. No real filesystem adapter, scan button, persistence, or metadata integration has been added in this phase.
 
 ## Library setup
 

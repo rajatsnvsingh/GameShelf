@@ -37,7 +37,7 @@ This verifies the foundation on the current Windows machine only. Portable packa
 
 ## Phase 2 verification (2026-09-09)
 
-Portable configuration is implemented. Phases 3–16 have not started.
+Portable configuration was completed before Phase 3.
 
 - Acceptance results: `npm test` passed all 17 tests; `npm run typecheck` passed with zero errors/warnings; `npm run test:smoke` and `npm run test:smoke:dev` passed, including production builds. The generated screenshot was visually inspected.
 - INI defaults, strict parsing, atomic root saves, native folder selection, safe library-state responses, and single-instance startup are in place.
@@ -45,6 +45,15 @@ Portable configuration is implemented. Phases 3–16 have not started.
 - Electron smoke tests exercise the UI and actual IPC with fake native dialog results, using only temporary fixtures. They verify persistence after relocation/restart, unavailable-root feedback, renderer isolation, and a real second process restoring the existing window and exiting.
 - Native dialog presentation itself is not automated. A packaged executable, actual removable-drive reassignment, read-only/unplugged-drive fault injection, and power-loss durability are not verified here; their packaging/hardening checks remain scheduled. Drive-letter changes are covered with Windows path fixtures and relocation with actual temporary folders.
 - No scanner, database, provider integration, or game-file operation has been added. INI files remain ignored by Git; `config.example.ini` is a sanitized reference only.
+
+## Phase 3 verification (2026-09-09)
+
+The pure scanner is implemented. Phases 4–16 have not started.
+
+- `npm test`: all 30 tests passed, including 13 new scanner tests. `npm run typecheck`: passed with zero errors/warnings. `npm run build`: passed. GUI smoke tests were not repeated because this milestone changes no running app code or UI.
+- Scanner fixtures cover ordinary games, collections, empty libraries/games/collections, loose files, nested folders that must not be visited, custom prefixes, Unicode and spaces, ignored links/special entries, deterministic ordering, invalid names, duplicate Windows names, and root/collection listing failures.
+- All listings are injected in memory. The scanner imports no Electron, filesystem, database, or provider code. Failure results omit partial discoveries, keeping later presence reconciliation separate and safe.
+- No UI, IPC, real directory-listing adapter, persistence, or provider integration was added. The current app still provides Phase 2 library setup only; actual manual scanning remains an integration milestone.
 
 ## Product completion criteria
 
