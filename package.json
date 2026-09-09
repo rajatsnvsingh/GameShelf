@@ -14,10 +14,12 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:smoke": "npm run build && node scripts/smoke.mjs",
     "test:smoke:dev": "npm run build && node scripts/smoke.mjs --dev",
+    "test:database:smoke": "npm run build && node scripts/database-smoke.mjs",
     "build": "electron-vite build"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "6.2.4",
+    "@types/better-sqlite3": "9.6.0",
     "@types/node": "24.13.3",
     "electron": "44.3.0",
     "electron-vite": "5.0.0",
@@ -26,5 +28,8 @@
     "svelte-check": "4.7.6",
     "typescript": "5.9.3",
     "vite": "7.3.6"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3"
   }
 }

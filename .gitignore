@@ -12,6 +12,7 @@ data/
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 *.log
 .env
 .env.*

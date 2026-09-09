@@ -48,12 +48,24 @@ Portable configuration was completed before Phase 3.
 
 ## Phase 3 verification (2026-09-09)
 
-The pure scanner is implemented. Phases 4–16 have not started.
+The pure scanner was completed before Phase 4.
 
 - `npm test`: all 30 tests passed, including 13 new scanner tests. `npm run typecheck`: passed with zero errors/warnings. `npm run build`: passed. GUI smoke tests were not repeated because this milestone changes no running app code or UI.
 - Scanner fixtures cover ordinary games, collections, empty libraries/games/collections, loose files, nested folders that must not be visited, custom prefixes, Unicode and spaces, ignored links/special entries, deterministic ordering, invalid names, duplicate Windows names, and root/collection listing failures.
 - All listings are injected in memory. The scanner imports no Electron, filesystem, database, or provider code. Failure results omit partial discoveries, keeping later presence reconciliation separate and safe.
 - No UI, IPC, real directory-listing adapter, persistence, or provider integration was added. The current app still provides Phase 2 library setup only; actual manual scanning remains an integration milestone.
+
+## Phase 4 verification (2026-09-09)
+
+SQLite persistence, migrations, and reconciliation are implemented. Phases 5–16 have not started.
+
+- `npm test`: all 50 tests passed, including 20 database tests. `npm run typecheck`: passed with zero errors/warnings. `npm run test:database:smoke`: production build and compiled repository checks passed in the actual Electron main process.
+- `node scripts/smoke.mjs`: existing library setup, isolation, relocation, and single-instance regression checks passed against the built app.
+- Tests cover first/repeat scans, missing/reappearing games and collections, empty snapshots, stable IDs/added dates, case/separator identity, moves/renames, preserved provider/manual data and explicit clearing, and failed/incomplete scans with no presence updates.
+- Real SQLite tests verify ordered/idempotent migrations, unknown history rejection, initial and upgrade rollback, reconciliation rollback after a forced SQL failure, read-only connection failure, corrupt-file preservation, portable relocation/reopen with overrides, root-binding refusal, and storage separation.
+- `better-sqlite3` 13.0.3 and its shipped Windows x64 native binary work in Node 24.14.1 and Electron 44.3.0. No rebuild dependency or command is needed for the verified setup.
+- Catalogs used for verification are temporary fixtures. The real app still provides library setup only; no automatic database open, real scanner adapter, catalog UI, or provider behavior was added.
+- Portable packaging, actual removable-drive/power-loss failures, and full recovery UX remain scheduled work. The migration runner reports errors and closes the database; it does not attempt a rebuild.
 
 ## Product completion criteria
 

@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–3 are implemented: a minimal Svelte window, sandboxed Electron renderer, narrow typed bridge, portable INI configuration, library folder selection, single-instance behavior, and a pure scanner tested with injected listings. The scanner is not wired into the app yet. Catalog persistence, manual scan UI, metadata, and portable distribution are later milestones.
+Phases 1–4 are implemented: the Electron/Svelte foundation, portable INI configuration, library folder selection, single-instance behavior, a pure scanner, and a SQLite repository with transactional migrations/reconciliation. The scanner and repository are tested independently and are not wired into the app UI yet. Manual scanning/browsing, metadata, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -48,17 +48,22 @@ Close the app window to end development. Renderer edits update through Vite; res
 | Command | Purpose |
 | --- | --- |
 | `npm run typecheck` | Check main/preload/shared TypeScript and Svelte renderer types. |
-| `npm test` | Run scanner, configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
+| `npm test` | Run scanner, SQLite/reconciliation, configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
 | `npm run build` | Compile main, preload, and renderer into `out/`; does not package a portable executable. |
 | `npm start` | Open the compiled app after a build. |
 | `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
 | `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on port 5173; close other dev servers first. |
+| `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
 
 The smoke tests use temporary portable folders, supply fake native picker results, close their windows, and save an ignored screenshot at `test-results/portable-config.png`. Close other GameShelf instances before testing. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
 Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
 
 The Phase 3 scanner is in `src/main/library/scanner.ts`. It accepts a root, collection prefix, and a directory-listing function; tests supply in-memory entries. It lists only the root and immediate collection folders, skips links and special entries, and returns either complete discoveries or a failure without partial data. No real filesystem adapter, scan button, persistence, or metadata integration has been added in this phase.
+
+Phase 4 adds `src/main/database`. `openCatalog(portableBase, relativeLibraryRoot)` opens `data/library.db`, migrates it, and returns a repository with list, reconcile, and close methods. Only complete validated scans change presence; failed scans are skipped. Reconciliation preserves IDs, added dates, bindings, metadata, and manual overrides. It never deletes records. The catalog stores a relative library binding and refuses a different root, including an INI change made outside the app. Phase 5 will connect this service to manual scans and browsing after the single-instance lock is acquired.
+
+`better-sqlite3` 13.0.3 is a runtime dependency; its shipped Windows x64 native binary was verified in Node 24.14.1 and Electron 44.3.0. No rebuild command is needed for these tested versions. Keep the lockfile and use `npm ci`; rerun `npm run test:database:smoke` after Electron or SQLite upgrades. Packaging must still include the native dependency, and packaged verification remains Phase 15.
 
 ## Library setup
 

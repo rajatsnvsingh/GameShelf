@@ -39,9 +39,13 @@ Phase 2 uses a strict scalar INI format with atomic replacement and no new depen
 
 Use one dependency-free scanner with an injected immediate-directory listing function. Match collection prefixes exactly, sort by ordinal relative path, preserve literal names, and skip all links/junctions and special entries. Reject unsafe names and duplicate case-insensitive sibling names. On any listing failure, return no partial discoveries. The filesystem adapter and app wiring remain later integration work.
 
+## Phase 4 persistence
+
+Use `better-sqlite3` 13.0.3 with its shipped native binary, verified on this Windows x64 machine in both Node and Electron. Use a small repository, consecutive transactional migrations, DELETE journaling, and FULL synchronization. Store normalized case-insensitive path keys separately from literal relative paths. Bind the database to the relative library root and reject silent root changes. Complete scans are reconciled atomically; failed scans do nothing. Defer artwork tables, metadata editing, query-specific indexes/columns, and app wiring to their milestones.
+
 ## Implementation choices still to validate
 
-- `better-sqlite3` is the preferred SQLite driver; validate compatibility with the selected Electron version and packaged Windows build.
+- `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.
 - electron-builder is the planned packaging tool; verify persistent portable-base resolution and native dependency bundling.
 - Select the first and second providers during their milestones. IGDB and TheGamesDB were discussed as candidates, not mandatory integrations. Supplemental artwork must use the same enabled-provider boundary.
 - Tune confidence scoring and ambiguity rules against fixtures. `0.90` was an example starting threshold, not an established accuracy guarantee.
