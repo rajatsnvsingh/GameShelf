@@ -82,7 +82,7 @@ try {
     assert.ok(saved.includes(`root="${gamesName}"`));
     assert.ok(!saved.includes(appDirectory));
     await assert.rejects(readFile(join(appDirectory, 'data', 'library.db')), { code: 'ENOENT' });
-    saved = saved.replace('providerOrder=""', 'providerOrder="igdb"') + '\n[provider.igdb]\nenabled="true"\nclientId="fixture-client"\nclientSecret="fixture-secret"\n';
+    saved += '\n[provider.igdb]\nenabled="true"\nclientId="fixture-client"\nclientSecret="fixture-secret"\n[provider.thegamesdb]\nenabled="true"\napiKey="fixture-key"\n';
     await writeFile(join(appDirectory, 'config.ini'), saved);
     // Fake only the main-process HTTP transport: exercise the real IGDB adapter/resolver/IPC.
     await application.evaluate(() => {
@@ -91,6 +91,12 @@ try {
         globalThis.fixtureProviderCalls.push(String(url));
         if (globalThis.fixtureProviderOffline) throw new Error('fixture-secret');
         if (String(url) === 'https://id.twitch.tv/oauth2/token') return new Response(JSON.stringify({ access_token: 'fixturetoken', expires_in: 3600, token_type: 'bearer' }));
+        const target = new URL(String(url));
+        if (target.hostname === 'api.thegamesdb.net') {
+          const game = id => ({ id, game_title: 'Game B 日本語', release_date: '2000-01-01', overview: 'Fixture metadata description' });
+          const games = target.searchParams.has('id') ? [game(7)] : target.searchParams.get('name') === 'Corrected title' ? [game(7)] : [game(7), game(8)];
+          return new Response(JSON.stringify({ code: 200, data: { count: games.length, games }, pages: { next: null } }));
+        }
         if (String(url) !== 'https://api.igdb.com/v4/games') throw new Error('Unexpected fixture request');
         const body = String(init.body);
         const game = id => ({ id, name: id === 1 ? 'Game A' : 'Game B 日本語', summary: 'Fixture metadata description', first_release_date: 946684800 });
@@ -133,15 +139,17 @@ try {
     await page.getByRole('status').filter({ hasText: 'No confident unique match' }).waitFor();
     await page.getByLabel('Search title', { exact: true }).fill('Corrected title');
     await page.getByRole('button', { name: 'Search candidates', exact: true }).click();
-    await page.getByRole('button', { name: 'Use this match', exact: true }).waitFor();
+    const secondProviderCandidate = page.getByRole('list', { name: 'Match candidates' }).getByRole('listitem').filter({ hasText: 'thegamesdb' });
+    await secondProviderCandidate.getByRole('button', { name: 'Use this match', exact: true }).waitFor();
     await page.screenshot({ path: resolve('test-results/matching.png'), fullPage: true });
-    await page.getByRole('button', { name: 'Use this match', exact: true }).click();
+    await secondProviderCandidate.getByRole('button', { name: 'Use this match', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Manual match saved' }).waitFor();
     await page.getByText('Fixture metadata description', { exact: true }).waitFor();
     await page.getByRole('region', { name: 'Games', exact: true }).getByText('No games need matching.', { exact: true }).waitFor();
     const matched = await page.evaluate(() => window.gameShelf.getCatalog());
     assert.equal(matched.value.games.find(game => game.id === originalMember.id).bindingSource, 'manual');
-    assert.equal(matched.value.games.find(game => game.id === originalMember.id).providerRecordId, '3');
+    assert.equal(matched.value.games.find(game => game.id === originalMember.id).providerRecordId, '7');
+    assert.equal(matched.value.games.find(game => game.id === originalMember.id).providerId, 'thegamesdb');
     assert.ok(!JSON.stringify(matched).includes('fixture-secret'));
     assert.ok(!JSON.stringify(matched).includes('https://'));
     await application.evaluate(() => { globalThis.fixtureProviderOffline = true; });
@@ -199,7 +207,7 @@ try {
     assert.equal(failedScan.ok, false);
     assert.deepEqual(await page.evaluate(() => window.gameShelf.getCatalog()), savedCatalog);
     assert.equal(savedCatalog.value.games.find(game => game.folderName === 'Game B 日本語').bindingSource, 'manual');
-    console.log('PASS: automatic and manual matching, ambiguity, provider failure, local scan, folder action, offline restart/relocation, isolation, and single instance.');
+    console.log('PASS: two-provider automatic/manual matching, ambiguity, provider failure, local scan, folder action, offline restart/relocation, isolation, and single instance.');
   } finally { await restarted.close(); }
 } finally {
   await server?.close();

@@ -149,6 +149,16 @@ Typed `autoMatch(gameId)`, `searchMatches(gameId, query)`, and `selectMatch(game
 
 The renderer adds Needs Matching, per-game automatic matching, candidate search/selection, and available metadata in details. Navigation, query text, and candidates remain transient. Matching operations are sequential; scanning/matching buttons wait for completion, while the current catalog can still be navigated. Tests use the real adapter with fake main-process fetch responses, plus temporary SQLite/filesystem fixtures; the production app contains no test-provider switch.
 
+## Phase 9 TheGamesDB and priority
+
+`TheGamesDbProvider` implements metadata search/details through the fixed `api.thegamesdb.net` origin using the [published API schema](https://api.thegamesdb.net/spec.yaml). TheGamesDB requires `apikey` as a query parameter. Main encodes it, forbids redirects, and exposes only fixed error codes; request URLs, response pagination links, and bodies never enter diagnostics or renderer DTOs. The provider uses one active operation, 300 ms spacing, a 10-second request/body deadline, and a 2 MiB streamed response limit.
+
+Search uses `/v1.1/Games/ByGameName`, details use `/v1/Games/ByGameID`. Paginated or inconsistent result counts are rejected as incomplete/invalid rather than followed. Metadata maps literal titles, overview, and release year. Developer/publisher/genre IDs use the respective ByID endpoints, with at most 50 IDs per field and per-session in-memory name caching. Unknown/malformed lookup records fail the detail attempt. The provider's rating is an age classification and is omitted from review scores. No artwork request or download is introduced.
+
+HTTP 403 is reported as key-or-quota rejection, since the API uses it for both. HTTP 429 respects Retry-After with a minimum one-second cooldown. Reported exhausted allowance prevents further requests until the reported reset interval; there are no automatic retry loops or background requests.
+
+Main-only configuration adds `[provider.thegamesdb]` enabled/apiKey. The missing-order default is `igdb,thegamesdb`; existing INI values remain unchanged. `configuredProviders` follows the supplied order, deduplicates IDs, and ignores unsupported IDs. Invalid enabled flags disable only that provider; absent credentials skip it. Session instances persist until metadata configuration changes. Existing resolver fallback handles errors, ambiguity, and confidence independently for each provider; a successful fallback is saved normally. Manual search returns both providers' candidates, while selection still fetches only the explicitly chosen provider's record. Reordering never refreshes or replaces existing bindings.
+
 ## Artwork and offline behavior
 
 Store covers/backgrounds under `data/artwork`, with database references. Precedence is **manual artwork > cached provider artwork > bundled placeholder**. Clipboard paste reads image data only on a user action, validates/decodes it, and writes a local asset. Normal refresh and cache maintenance must protect manual assets.

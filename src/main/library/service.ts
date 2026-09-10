@@ -179,7 +179,7 @@ export class LibraryService {
         const { repo, game, key } = await this.matchContext(gameId);
         if (game.matchStatus === 'matched' || game.providerId) return { ok: true, value: this.view(repo), message: 'Existing match preserved.' };
         const session = await this.providers();
-        if (!session.providers.some(entry => entry.enabled && entry.configured)) return { ok: false, message: 'Enable and configure IGDB in config.ini first.' };
+        if (!session.providers.some(entry => entry.enabled && entry.configured)) return { ok: false, message: 'Enable and configure a metadata provider in config.ini first.' };
         const result = await resolveMetadata(game.folderName, session.providers, { threshold: session.threshold });
         await this.verifyMatchContext(key);
         if (result.status === 'matched') {
@@ -201,7 +201,7 @@ export class LibraryService {
         const { key } = await this.matchContext(gameId);
         const session = await this.providers();
         const enabled = session.providers.filter(entry => entry.enabled && entry.configured);
-        if (!enabled.length) return { ok: false, message: 'Enable and configure IGDB in config.ini first.' };
+        if (!enabled.length) return { ok: false, message: 'Enable and configure a metadata provider in config.ini first.' };
         const candidates: MatchCandidate[] = [];
         let failed = false;
         for (const { provider } of enabled) {

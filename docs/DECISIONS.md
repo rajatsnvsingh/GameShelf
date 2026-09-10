@@ -59,6 +59,10 @@ Use native fetch without a new dependency. Credentials belong in the ignored `[p
 
 Save the local scan before enriching newly discovered games only. Keep existing unresolved entries for an explicit per-game retry. Stop automatic enrichment on provider failure and preserve local discoveries. Manual search does not save; selection retrieves details, then writes the binding and metadata atomically. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
 
+## Phase 9 TheGamesDB and priority
+
+Add TheGamesDB as the second optional metadata provider, using its API key in ignored INI settings and bounded GET requests to its fixed API origin. Resolve company/genre IDs only when needed, cache names in memory, reject incomplete search pages, and omit age ratings from review scores. Preserve existing configured order; new configurations default to IGDB then TheGamesDB with both disabled. Skip disabled/misconfigured entries independently and preserve bindings across order changes. No additional dependency, schema, renderer bridge, or artwork behavior is needed.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.

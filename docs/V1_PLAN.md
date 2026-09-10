@@ -98,13 +98,23 @@ The IGDB adapter, main-only INI settings, and optional live check were completed
 
 ## Phase 8 verification (2026-09-09)
 
-Matching UI, automatic enrichment of new discoveries, and persisted provider bindings/metadata are implemented. Phases 9–16 have not started.
+Matching UI, automatic enrichment of new discoveries, and persisted provider bindings/metadata were completed before Phase 9.
 
 - `npm test`: all 102 tests passed, including 10 matching integration/IPC tests. `npm run typecheck`: passed with zero errors/warnings. Production build and production/development Electron smoke checks passed. Catalog and candidate-selection screenshots were visually inspected.
 - Tests verify exact automatic matches, unresolved ambiguity, explicit retry for old records, manual search/selection, latest-search validation, preserved overrides including null clearing, rescan/restart persistence, automatic-overwrite refusal, failed details, provider outages after reconciliation, settings changes/shutdown preventing late writes, and strict IPC payloads.
 - Electron checks use fake main-process HTTP responses with the actual IGDB adapter, resolver, repository, IPC, and UI. They verify automatic/manual matching, metadata display, unresolved ambiguity, provider failure, no renderer provider/artwork requests, and offline persistence after restart/relocation. Tests now use a temporary Chromium profile and an available loopback dev port, allowing a user instance to remain open.
 - No real credentials or user library were used in Phase 8 tests. The Phase 7 live adapter check had already passed; the combined UI workflow was verified with fixtures. No migrations, dependencies, artwork downloads, or second provider were added.
 - Matching remains sequential, with per-game retry/search for existing unresolved entries. Artwork, broader UI polish, and bulk maintenance remain scheduled work.
+
+## Phase 9 verification (2026-09-09)
+
+TheGamesDB and configured provider priority are implemented. Phases 10–16 have not started.
+
+- `npm test`: all 112 tests passed, including 10 TheGamesDB/priority tests. `npm run typecheck`: passed with zero errors/warnings. `npm run test:smoke`: production build and two-provider Electron workflow passed.
+- Fixtures verify encoded queries, normalized metadata/name lookups and cache reuse, invalid/partial responses, missing values, secret-safe failures, disabled/missing keys, response size, timeout/overlap, rate limits/quota cooldown, configured/reversed order, duplicate/unknown IDs, misconfigured-provider isolation, actual adapter fallback, and preserved manual binding after reordering/rescanning.
+- Electron checks use fake HTTP responses with both real adapters. They verify first-provider automatic matching, ambiguity, candidates from both providers, explicit TheGamesDB selection, failed-provider preservation, and offline persisted matches after restart/relocation. No user library or credentials were used.
+- `npm run test:thegamesdb:live` without `--run` correctly skipped. The optional credentialed TheGamesDB check has not run yet; live API compatibility remains unverified until configured. IGDB's earlier live check had passed.
+- No dependencies, schema changes, new IPC, or artwork features were added. Development GUI smoke was not repeated because renderer/preload code is unchanged and production integration checks passed.
 
 ## Product completion criteria
 

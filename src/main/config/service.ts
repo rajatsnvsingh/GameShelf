@@ -6,6 +6,7 @@ import type { LibraryState } from '../../shared/api.ts';
 import { parseIni, withDefaults, writeIni, type Ini } from './ini.ts';
 import { relativeRoot, resolveRoot, validateRootLayout } from './paths.ts';
 import type { IgdbSettings } from '../metadata/igdb.ts';
+import type { TheGamesDbSettings } from '../metadata/thegamesdb.ts';
 
 export async function atomicWrite(path: string, content: string): Promise<void> {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -47,11 +48,13 @@ export class ConfigService {
   }
 
   // Main-process use only; never expose the full INI or provider credentials to views.
-  async getMetadataSettings(): Promise<{ igdb: IgdbSettings; threshold: number; providerOrder: string[] }> {
+  async getMetadataSettings(): Promise<{ igdb: IgdbSettings; thegamesdb: TheGamesDbSettings; threshold: number; providerOrder: string[] }> {
     const ini = await this.read();
     const provider = ini['provider.igdb'] ?? {};
-    if (provider.enabled !== undefined && !['true', 'false'].includes(provider.enabled)) throw new Error('Invalid IGDB enabled setting.');
+    const second = ini['provider.thegamesdb'] ?? {};
+    // An invalid enabled flag disables only that provider; other providers and local use survive.
     return { igdb: { enabled: provider.enabled === 'true', clientId: provider.clientId ?? '', clientSecret: provider.clientSecret ?? '' },
+      thegamesdb: { enabled: second.enabled === 'true', apiKey: second.apiKey ?? '' },
       threshold: Number(ini.metadata.matchingThreshold),
       providerOrder: ini.metadata.providerOrder.split(',').map(id => id.trim()).filter(Boolean) };
   }

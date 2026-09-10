@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–8 are implemented. Select a library, scan manually, browse games and collections, match metadata through IGDB, and use **Open Install Folder**. SQLite preserves the catalog and matches across restarts and relocation. Artwork, additional providers, expanded browsing controls, and portable distribution remain later milestones.
+Phases 1–9 are implemented. Select a library, scan manually, browse games and collections, match metadata through IGDB and TheGamesDB in configured order, and use **Open Install Folder**. SQLite preserves the catalog and matches across restarts and relocation. Artwork, expanded browsing controls, and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -55,6 +55,7 @@ Close the app window to end development. Renderer edits update through Vite; res
 | `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on an available port. |
 | `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
 | `npm run test:igdb:live -- --run` | Optional IGDB authentication/search/detail check using local INI credentials; no catalog writes. Without `--run`, skips without networking. |
+| `npm run test:thegamesdb:live -- --run` | Optional TheGamesDB key/search/detail check, including company/genre name lookups; no catalog writes. Without `--run`, skips without networking. |
 
 The smoke tests use temporary portable folders and an isolated Chromium profile, supply fake picker and IGDB HTTP responses, capture Explorer target paths without opening Explorer, and close their windows. Ignored screenshots are saved at `test-results/catalog.png` and `test-results/matching.png`. Checks cover matching, provider failure, scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
 
@@ -82,7 +83,7 @@ The INI stores the library root relative to the portable base, including `../Gam
 
 ## Matching metadata (Phase 8)
 
-With IGDB configured, **Scan library** saves discoveries first, then attempts automatic matching only for newly added games. Exact, unambiguous results are saved; ambiguous or unsuccessful results remain in **Needs Matching**. Existing records are never implicitly rematched by scanning. Provider failure leaves the local scan intact and stops further automatic requests for that scan.
+With metadata providers configured, **Scan library** saves discoveries first, then attempts automatic matching only for newly added games. Enabled/configured providers are tried in INI order until one supplies a confident, unique match. Empty, ambiguous, low-confidence, and failed attempts allow fallback. If no provider succeeds, the game remains in **Needs Matching**. Existing records are never implicitly rematched by scanning. An unresolved provider failure leaves the local scan intact and stops further automatic requests for that scan.
 
 For games already in your catalog, open **Needs Matching**, select a game, and choose **Match automatically**. If needed, edit **Search title**, choose **Search candidates**, then **Use this match** beside the correct title/year. Searching alone changes nothing. The selected record's details are fetched before its provider/record ID and metadata are saved. A matched game's **Change match** controls allow an explicit new selection; a failed request keeps the old match.
 
@@ -101,9 +102,25 @@ clientSecret="YOUR_CLIENT_SECRET"
 
 IGDB uses Twitch client credentials; the adapter requests an app access token and keeps it in memory only. You do not need to copy an access token into INI. See [IGDB authentication](https://api-docs.igdb.com/#authentication) and [Twitch client credentials](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow).
 
-Run `npm run test:igdb:live -- --run` when ready. It searches for Portal, fetches its details, and prints a safe pass/fail message. It does not scan your library, write matches, or download artwork. Missing/disabled configuration skips the check. Automated tests always use fake responses. IGDB is disabled unless explicitly enabled and listed in providerOrder. TheGamesDB credentials are not needed until Phase 9.
+Run `npm run test:igdb:live -- --run` when ready. It searches for Portal, fetches its details, and prints a safe pass/fail message. It does not scan your library, write matches, or download artwork. Missing/disabled configuration skips the check. Automated tests always use fake responses. IGDB is disabled unless explicitly enabled and listed in providerOrder.
 
 The adapter allows one operation at a time, spaces request starts by at least 300 ms, and applies a 10-second timeout and 2 MiB response limit. It retries an unauthorized API request once with a new token, honors rate-limit cooldowns, and reports other errors for an explicit retry. Searches that fill the 50-result limit are treated as too broad rather than trusting an incomplete candidate set. Release year is normalized; a precise release day is omitted until date precision is established.
+
+## TheGamesDB and provider priority (Phase 9)
+
+Close GameShelf, then edit your ignored local `config.ini`. Set `providerOrder="igdb,thegamesdb"` in the existing `[metadata]` section and add:
+
+```ini
+[provider.thegamesdb]
+enabled="true"
+apiKey="YOUR_THEGAMESDB_API_KEY"
+```
+
+Use your TheGamesDB API key, never the Twitch secret. Run `npm run test:thegamesdb:live -- --run` for the optional live check. It performs search/details and any required company/genre lookups using the [official API](https://api.thegamesdb.net/); no catalog or artwork is written. Its key is required in API query parameters, so request URLs are never logged or returned to the UI.
+
+The default order for new configurations is IGDB then TheGamesDB, with both disabled until explicitly enabled. Existing INI order, including an empty order, is preserved. Reverse the list to prefer TheGamesDB, or omit/disable a provider to exclude it. Unknown IDs are ignored and duplicates run only once. An invalid enabled flag disables that provider; missing credentials skip it. Manual searches list candidates from both providers in order. Priority changes never rematch existing records or override manual selections.
+
+TheGamesDB requests use a fixed API origin, no redirects, one active operation, 300 ms spacing, 10-second deadlines, and a 2 MiB response limit. Pagination is refused as too broad rather than following URLs containing keys or accepting incomplete matches. Company/genre IDs resolve through bounded lookups with names cached in memory. HTTP 403 may indicate a bad key or exhausted allowance; 429 and reported quota exhaustion impose a cooldown. Age classifications are not converted into review scores. Artwork remains Phase 10.
 
 Local version control uses Git. INI settings and their backups, `.env` files, databases, artwork/data, logs, dependencies, and build/test output are ignored. Only sanitized `*.example.ini` templates may be tracked; never put real API keys in those examples. Review `git diff --cached` before committing. Git ignore rules do not protect files that were already tracked or explicitly force-added.
 

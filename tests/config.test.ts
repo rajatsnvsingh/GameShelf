@@ -35,7 +35,7 @@ test('INI defaults and string round trips preserve punctuation and future secret
   const ini = withDefaults(parseIni('\uFEFF; comment\n[library]\nroot=Jeux 日本語\n[provider.future]\nkey="fake;#=token"\n'));
   assert.equal(ini.library.collectionPrefix, 'Collection_');
   assert.equal(ini.library.showCollectionGames, 'true');
-  assert.equal(ini.metadata.providerOrder, '');
+  assert.equal(ini.metadata.providerOrder, 'igdb,thegamesdb');
   assert.equal(ini.metadata.matchingThreshold, '0.90');
   assert.deepEqual(parseIni(writeIni(ini)), ini);
 });

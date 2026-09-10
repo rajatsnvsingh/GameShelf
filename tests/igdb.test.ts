@@ -156,7 +156,7 @@ test('INI credentials stay main-only, provider selection is explicit, invalid pr
   const base = await mkdtemp(join(tmpdir(), 'gameshelf-igdb-'));
   try {
     const config = new ConfigService(base);
-    assert.deepEqual((await configuredProviders(config)).providers, []);
+    assert.ok((await configuredProviders(config)).providers.every(entry => !entry.enabled && !entry.configured));
     const content = '[metadata]\nproviderOrder="igdb"\n[provider.igdb]\nenabled="true"\nclientId="fixture-client"\nclientSecret="fixture-secret"\n';
     await writeFile(join(base, 'config.ini'), content);
     const configured = await configuredProviders(config);
@@ -166,7 +166,7 @@ test('INI credentials stay main-only, provider selection is explicit, invalid pr
     assert.ok(!JSON.stringify(await config.getState()).includes('fixture-secret'));
     assert.equal(await readFile(join(base, 'config.ini'), 'utf8'), content);
     await writeFile(join(base, 'config.ini'), content.replace('enabled="true"', 'enabled="invalid"'));
-    await assert.rejects(config.getMetadataSettings(), /Invalid IGDB enabled setting/);
+    assert.equal((await config.getMetadataSettings()).igdb.enabled, false);
     assert.equal((await config.getState()).status, 'unconfigured');
   } finally { await rm(base, { recursive: true, force: true }); }
 });

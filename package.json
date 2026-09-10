@@ -16,6 +16,7 @@
     "test:smoke:dev": "npm run build && node scripts/smoke.mjs --dev",
     "test:database:smoke": "npm run build && node scripts/database-smoke.mjs",
     "test:igdb:live": "node --experimental-strip-types scripts/igdb-live.ts",
+    "test:thegamesdb:live": "node --experimental-strip-types scripts/thegamesdb-live.ts",
     "build": "electron-vite build"
   },
   "devDependencies": {
