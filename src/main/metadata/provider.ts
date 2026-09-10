@@ -3,6 +3,7 @@ export interface SearchCandidate {
   recordId: string;
   title: string;
   releaseYear?: number;
+  hasArtwork?: boolean;
 }
 
 export interface ArtworkReference {

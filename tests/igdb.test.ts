@@ -30,12 +30,12 @@ function fixture(responses: (Response | Error)[]) {
 const code = (expected: string) => (error: unknown) => error instanceof IgdbError && error.code === expected;
 
 test('IGDB obtains a token in a POST body, reuses it and normalizes search/details', async () => {
-  const f = fixture([json(token), json([game]), json([{ ...game, summary: 'Summary', total_rating: 88,
+  const f = fixture([json(token), json([{ ...game, cover: { image_id: 'searchcover' } }]), json([{ ...game, summary: 'Summary', total_rating: 88,
     genres: [{ name: 'Adventure' }], involved_companies: [{ developer: true, publisher: true, company: { name: 'Studio' } }],
     cover: { image_id: 'cover123' }, artworks: [{ image_id: 'art123' }] }])]);
-  assert.deepEqual(await f.provider.search('Game A'), [{ recordId: '1', title: 'Game A', releaseYear: 2000 }]);
+  assert.deepEqual(await f.provider.search('Game A'), [{ recordId: '1', title: 'Game A', releaseYear: 2000, hasArtwork: true }]);
   const details = await f.provider.getGame('1');
-  assert.deepEqual(details, { recordId: '1', title: 'Game A', releaseYear: 2000, description: 'Summary', rating: 88,
+  assert.deepEqual(details, { recordId: '1', title: 'Game A', releaseYear: 2000, hasArtwork: true, description: 'Summary', rating: 88,
     developers: ['Studio'], publishers: ['Studio'], genres: ['Adventure'], artwork: [
       { kind: 'cover', url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/cover123.jpg' },
       { kind: 'background', url: 'https://images.igdb.com/igdb/image/upload/t_1080p/art123.jpg' }
@@ -59,7 +59,7 @@ test('IGDB omits unavailable/invalid optional metadata and never trusts remote i
 test('IGDB escapes search strings and rejects unsafe IDs/control characters before networking', async () => {
   const f = fixture([json(token), json([])]);
   await f.provider.search('Game "A" \\ Edition');
-  assert.equal(f.calls[1].init.body, 'search "Game \\"A\\" \\\\ Edition"; fields name,first_release_date; limit 50;');
+  assert.equal(f.calls[1].init.body, 'search "Game \\"A\\" \\\\ Edition"; fields name,first_release_date,cover.image_id; limit 50;');
   for (const id of ['0', '-1', '1; fields *;', '../1', '9007199254740992', '01']) await assert.rejects(f.provider.getGame(id), code('invalid-record-id'));
   for (const query of ['', 'a\nb', 'x'.repeat(251)]) await assert.rejects(f.provider.search(query), code('invalid-query'));
   assert.equal(f.calls.length, 2);

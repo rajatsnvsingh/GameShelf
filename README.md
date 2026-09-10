@@ -15,7 +15,7 @@ GameShelf is a Windows-only portable catalog for game installer folders on an ex
 
 Use Playnite as visual direction for a windowed, mouse-and-keyboard interface:
 
-- **Home:** recently added games, collections, and all games.
+- **Home:** collections, games discovered after the initial scan, and a locally selectable grouping by release decade or genre. The initial scan and a rebuild intentionally have no recently added games.
 - **All Games:** search by title, filter by release year or collection, sort alphabetically or by release date.
 - **Collections:** collection cards and individual collection pages. A setting controls whether collection games appear in the main library; they remain searchable regardless.
 - **Game details:** cover, background, and available metadata such as description, release date, developer, publisher, genres, ratings, and reviews. Omit unavailable fields and sections.
@@ -83,9 +83,9 @@ The INI stores the library root relative to the portable base, including `../Gam
 
 ## Matching metadata (Phase 8)
 
-With metadata providers configured, **Scan library** saves discoveries first, then attempts automatic matching only for newly added games. Enabled/configured providers are tried in INI order until one supplies a confident, unique match. Empty, ambiguous, low-confidence, and failed attempts allow fallback. If no provider succeeds, the game remains in **Needs Matching**. Existing records are never implicitly rematched by scanning. An unresolved provider failure leaves the local scan intact and stops further automatic requests for that scan.
+With metadata providers configured, **Scan library** saves discoveries first, then attempts automatic matching for every unresolved game. The sidebar reports scanning/matching progress, including the current folder, attempts, and matches. Enabled/configured providers are tried in INI order until one supplies a confident, unique match. Empty, ambiguous, low-confidence, and failed attempts allow fallback. If no provider succeeds, the game remains in **Needs Matching** for the next manual scan. Existing matches are never implicitly rematched by scanning. An unresolved provider failure leaves the local scan intact and stops further automatic requests for that scan.
 
-For games already in your catalog, open **Needs Matching**, select a game, and choose **Match automatically**. If needed, edit **Search title**, choose **Search candidates**, then **Use this match** beside the correct title/year. Searching alone changes nothing. The selected record's details are fetched before its provider/record ID and metadata are saved. A matched game's **Change match** controls allow an explicit new selection; a failed request keeps the old match.
+For games already in your catalog, open **Needs Matching**, select a game, and choose **Match automatically**. If needed, edit **Search title**, select one enabled metadata provider, choose **Search candidates**, then **Use this match** beside the candidate's title, release year, provider, record ID, and any artwork availability reported by that provider. Searching alone changes nothing. The selected record's details are fetched before its provider/record ID and metadata are saved. A matched game's **Change match** dialog identifies its current provider, record ID, binding type, and catalog folder; an explicit selection replaces that binding while a failed request keeps the old match.
 
 Titles, descriptions, release years, companies, genres, and ratings appear when available and remain readable offline. Manual bindings and overrides survive scans and restarts. Artwork is not downloaded or displayed yet. Provider work runs sequentially; wait for the current operation before scanning or matching again. Startup and Retry never trigger metadata requests.
 
@@ -121,7 +121,7 @@ enabled="true"
 apiKey="YOUR_STEAMGRIDDB_API_KEY"
 ```
 
-SteamGridDB never supplies or replaces descriptive metadata bindings. Cached provider artwork never replaces a manual artwork row reserved for Phase 11.
+SteamGridDB never supplies or replaces descriptive metadata bindings. After a game has a metadata match, use **Edit > Fetch artwork** to stage cover/background art from the matched provider and SteamGridDB. Entering a SteamGridDB game ID is optional and avoids title-search ambiguity; leaving it blank uses title lookup. GameShelf shows the current and proposed local artwork, then replaces only the confirmed items. Artwork is classified as manual only when it was pasted through **Edit metadata & artwork**; provider/API artwork is always provider artwork. Changing a metadata match refreshes provider-cached artwork while leaving pasted artwork intact.
 
 ## TheGamesDB and provider priority (Phase 9)
 
@@ -135,7 +135,7 @@ apiKey="YOUR_THEGAMESDB_API_KEY"
 
 Use your TheGamesDB API key, never the Twitch secret. Run `npm run test:thegamesdb:live -- --run` for the optional live check. It performs search/details and any required company/genre lookups using the [official API](https://api.thegamesdb.net/); no catalog or artwork is written. Its key is required in API query parameters, so request URLs are never logged or returned to the UI.
 
-The default order for new configurations is IGDB then TheGamesDB, with both disabled until explicitly enabled. Existing INI order, including an empty order, is preserved. Reverse the list to prefer TheGamesDB, or omit/disable a provider to exclude it. Unknown IDs are ignored and duplicates run only once. An invalid enabled flag disables that provider; missing credentials skip it. Manual searches list candidates from both providers in order. Priority changes never rematch existing records or override manual selections.
+The default order for new configurations is IGDB then TheGamesDB, with both disabled until explicitly enabled. Existing INI order, including an empty order, is preserved. Reverse the list to prefer TheGamesDB, or omit/disable a provider to exclude it. Unknown IDs are ignored and duplicates run only once. An invalid enabled flag disables that provider; missing credentials skip it. Manual search starts with the configured default metadata provider and can target another enabled provider explicitly. Priority changes never rematch existing records or override manual selections.
 
 TheGamesDB requests use a fixed API origin, no redirects, one active operation, 300 ms spacing, 10-second deadlines, and a 2 MiB response limit. Pagination is refused as too broad rather than following URLs containing keys or accepting incomplete matches. Company/genre IDs resolve through bounded lookups with names cached in memory. HTTP 403 may indicate a bad key or exhausted allowance; 429 and reported quota exhaustion impose a cooldown. Age classifications are not converted into review scores. Artwork remains Phase 10.
 

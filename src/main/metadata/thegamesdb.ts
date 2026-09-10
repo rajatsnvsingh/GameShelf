@@ -15,6 +15,7 @@ function candidate(value: unknown): SearchCandidate {
   if (!Number.isSafeInteger(item.id) || (item.id as number) <= 0 || typeof item.game_title !== 'string' || !item.game_title.trim()) throw new TheGamesDbError('invalid-response');
   const result: SearchCandidate = { recordId: String(item.id), title: item.game_title };
   if (typeof item.release_date === 'string' && /^[1-9]\d{3}(?:-|$)/.test(item.release_date)) result.releaseYear = Number(item.release_date.slice(0, 4));
+  if (typeof item.image === 'string' && item.image.trim()) result.hasArtwork = true;
   return result;
 }
 interface Runtime {

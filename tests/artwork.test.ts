@@ -32,6 +32,26 @@ test('provider artwork cannot replace a future manual asset', async t => {
   assert.deepEqual(repo.listArtwork(game.id), [{ kind: 'cover', source: 'manual', localPath: 'manual.png' }]);
 });
 
+test('a provider artwork refresh replaces an existing provider cache row', async t => {
+  const base = await mkdtemp(join(tmpdir(), 'gameshelf-artwork-refresh-')); const repo = openCatalog(base, 'Games');
+  t.after(async () => { repo.close(); await rm(base, { recursive: true, force: true }); });
+  repo.reconcile({ status: 'complete', collections: [], games: [{ folderName: 'Game', relativePath: 'Game', collectionPath: null }] });
+  const game = repo.listGames()[0];
+  assert.equal(repo.saveProviderArtwork(game.id, 'cover', 'first.jpg', 'https://images.example/first.jpg'), true);
+  assert.equal(repo.saveProviderArtwork(game.id, 'cover', 'replacement.jpg', 'https://images.example/replacement.jpg'), true);
+  assert.deepEqual(repo.listArtwork(game.id), [{ kind: 'cover', source: 'provider', localPath: 'replacement.jpg' }]);
+});
+
+test('a confirmed provider replacement can replace user-supplied artwork', async t => {
+  const base = await mkdtemp(join(tmpdir(), 'gameshelf-artwork-confirm-')); const repo = openCatalog(base, 'Games');
+  t.after(async () => { repo.close(); await rm(base, { recursive: true, force: true }); });
+  repo.reconcile({ status: 'complete', collections: [], games: [{ folderName: 'Game', relativePath: 'Game', collectionPath: null }] });
+  const game = repo.listGames()[0];
+  assert.equal(repo.saveManualArtwork(game.id, 'cover', 'manual.png'), true);
+  assert.equal(repo.replaceWithProviderArtwork(game.id, 'cover', 'confirmed.jpg', 'https://images.example/confirmed.jpg'), true);
+  assert.deepEqual(repo.listArtwork(game.id), [{ kind: 'cover', source: 'provider', localPath: 'confirmed.jpg' }]);
+});
+
 test('SteamGridDB is artwork-only and sends its key only in an authorization header', async () => {
   const calls: RequestInit[] = [];
   const provider = new SteamGridDbProvider({ enabled: true, apiKey: 'secret' }, async (_url, init) => {

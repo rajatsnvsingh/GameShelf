@@ -68,6 +68,14 @@ export class CatalogRepository {
     return result.changes === 1;
   }
 
+  replaceWithProviderArtwork(gameId: number, kind: 'cover' | 'background', localPath: string, remoteUrl: string): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(kind) ||
+      !/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(localPath) || !/^https:\/\//.test(remoteUrl)) throw new Error('Invalid artwork.');
+    const result = this.db.prepare(`INSERT INTO artwork (game_id, kind, source, local_path, remote_url) VALUES (?, ?, 'provider', ?, ?)
+      ON CONFLICT(game_id, kind) DO UPDATE SET source = 'provider', local_path = excluded.local_path, remote_url = excluded.remote_url`).run(gameId, kind, localPath, remoteUrl);
+    return result.changes === 1;
+  }
+
   saveManualOverrides(gameId: number, overrides: Record<string, unknown>): boolean {
     if (!Number.isSafeInteger(gameId) || gameId <= 0 || !validOverrides(overrides)) throw new Error('Invalid overrides.');
     return this.db.prepare('UPDATE games SET manual_overrides = ? WHERE id = ?').run(JSON.stringify(overrides), gameId).changes === 1;

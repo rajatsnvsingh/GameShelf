@@ -14,6 +14,9 @@ export const SETTINGS_CHANNEL = 'settings:get';
 export const SAVE_SETTINGS_CHANNEL = 'settings:save';
 export const DELETE_MISSING_CHANNEL = 'maintenance:delete-missing';
 export const REBUILD_CHANNEL = 'maintenance:rebuild';
+export const MATCHING_STATUS_CHANNEL = 'metadata:get-status';
+export const FETCH_ARTWORK_CHANNEL = 'artwork:fetch';
+export const CONFIRM_ARTWORK_CHANNEL = 'artwork:confirm';
 
 export interface DisplayMetadata {
   title?: string;
@@ -24,8 +27,11 @@ export interface DisplayMetadata {
   genres?: string[];
   rating?: number;
 }
-export interface MatchCandidate { providerId: string; recordId: string; title: string; releaseYear?: number; }
+export interface MatchCandidate { providerId: string; recordId: string; title: string; releaseYear?: number; hasArtwork?: boolean; }
 export interface MatchSearch { candidates: MatchCandidate[]; }
+export interface MatchingStatus { phase: 'idle' | 'scanning' | 'matching' | 'complete'; attempted: number; total: number; matched: number; gameName?: string; message?: string; }
+export interface ArtworkPreviewItem { kind: 'cover' | 'background'; currentUrl?: string; currentSource?: 'manual' | 'provider'; proposedUrl: string; }
+export interface ArtworkPreview { items: ArtworkPreviewItem[]; }
 
 export type OperationResult<T> = { ok: true; value: T; message?: string } | { ok: false; message: string };
 
@@ -76,11 +82,14 @@ export interface GameShelfApi {
   scanLibrary(): Promise<OperationResult<CatalogView>>;
   openInstallFolder(gameId: number): Promise<OperationResult<null>>;
   autoMatch(gameId: number): Promise<OperationResult<CatalogView>>;
-  searchMatches(gameId: number, query: string): Promise<OperationResult<MatchSearch>>;
+  getMatchingStatus(): Promise<MatchingStatus>;
+  searchMatches(gameId: number, query: string, providerId?: string): Promise<OperationResult<MatchSearch>>;
   selectMatch(gameId: number, providerId: string, recordId: string): Promise<OperationResult<CatalogView>>;
   saveOverrides(gameId: number, overrides: DisplayMetadata): Promise<OperationResult<CatalogView>>;
   pasteArtwork(gameId: number, kind: 'cover' | 'background'): Promise<OperationResult<CatalogView>>;
   replaceAllRescrape(gameId: number): Promise<OperationResult<CatalogView>>;
+  fetchArtwork(gameId: number, steamGridDbId?: string): Promise<OperationResult<ArtworkPreview>>;
+  confirmArtwork(gameId: number): Promise<OperationResult<CatalogView>>;
   getSettings(): Promise<OperationResult<SettingsView>>;
   saveSettings(settings: SettingsUpdate): Promise<OperationResult<SettingsView>>;
   deleteMissing(): Promise<OperationResult<CatalogView>>;

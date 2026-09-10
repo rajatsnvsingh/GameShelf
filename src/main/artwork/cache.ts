@@ -18,7 +18,7 @@ export class ArtworkCache {
   private readonly fetcher: typeof fetch;
   constructor(base: string, fetcher: typeof fetch = globalThis.fetch) { this.base = base; this.fetcher = fetcher; }
 
-  async download(gameId: number, artwork: ArtworkReference): Promise<string> {
+  async download(gameId: number, artwork: ArtworkReference, preview = false): Promise<string> {
     if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(artwork.kind)) throw new ArtworkError();
     let url: URL;
     try { url = new URL(artwork.url); } catch { throw new ArtworkError(); }
@@ -45,7 +45,7 @@ export class ArtworkCache {
       if (!suffix) throw new ArtworkError();
       const directory = join(this.base, 'data', 'artwork');
       await mkdir(directory, { recursive: true });
-      const name = `${gameId}-${artwork.kind}-${createHash('sha256').update(artwork.url).digest('hex').slice(0, 24)}.${suffix}`;
+      const name = `${gameId}-${artwork.kind}-${createHash('sha256').update(artwork.url).update(preview ? '\0preview' : '').digest('hex').slice(0, 24)}.${suffix}`;
       const target = join(directory, name);
       const temporary = `${target}.${randomUUID()}.tmp`;
       try {

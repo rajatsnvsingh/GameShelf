@@ -19,7 +19,7 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 | Metadata | Optional; multiple enabled providers with INI priority and credentials. Only confident, unambiguous auto-matches; otherwise manual matching. |
 | Manual work | Stored manual matches override provider order. Manual metadata/artwork overrides survive normal scans/refreshes; only explicit replace-all rescrape may replace them. |
 | Artwork | Covers and backgrounds first; locally cached, with clipboard-paste custom images. Manual > cached provider > placeholder. |
-| UI | Playnite-inspired, windowed, mouse/keyboard. Home (recently added, collections, all games), All Games, Collections, details, Needs Matching, Settings. |
+| UI | Playnite-inspired, windowed, mouse/keyboard. Home (collections, recently added, release-decade or genre groups), All Games, Collections, details, Needs Matching, Settings. Recently added excludes the catalog's initial scan and rebuild baseline. |
 | Discovery UI | Title search, year/collection filters, alphabetical/release-date sorts. Omit unavailable metadata sections. |
 | Settings | INI holds durable choices and plaintext API keys. Do not persist incidental UI state. |
 | Network | Only enabled metadata/artwork provider traffic; no telemetry or automatic updates. Local catalog works without providers and offline after caching. |
@@ -57,7 +57,7 @@ Use native fetch without a new dependency. Credentials belong in the ignored `[p
 
 ## Phase 8 matching workflow
 
-Save the local scan before enriching newly discovered games only. Keep existing unresolved entries for an explicit per-game retry. Stop automatic enrichment on provider failure and preserve local discoveries. Manual search does not save; selection retrieves details, then writes the binding and metadata atomically. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
+Save the local scan before enriching every unresolved, unbound game. Preserve existing bindings. Stop automatic enrichment on provider failure and preserve local discoveries. Manual search does not save; it targets one selected enabled metadata provider, and selection retrieves details before atomically writing the binding and metadata. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
 
 ## Phase 9 TheGamesDB and priority
 

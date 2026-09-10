@@ -18,6 +18,8 @@ function candidate(value: unknown): SearchCandidate {
     const date = new Date(item.first_release_date * 1000);
     if (Number.isFinite(date.getTime())) result.releaseYear = date.getUTCFullYear();
   }
+  if (item.cover && typeof item.cover === 'object' && !Array.isArray(item.cover) &&
+    typeof (item.cover as Row).image_id === 'string' && /^[a-zA-Z0-9_-]+$/.test((item.cover as Row).image_id as string)) result.hasArtwork = true;
   return result;
 }
 function list(value: unknown): Row[] {
@@ -164,7 +166,7 @@ export class IgdbProvider implements MetadataProvider {
     if (!query.trim() || query.length > 250 || /[\x00-\x1f]/.test(query)) throw new IgdbError('invalid-query');
     return this.operation(async () => {
       const escaped = query.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const result = await this.games(`search "${escaped}"; fields name,first_release_date; limit 50;`);
+      const result = await this.games(`search "${escaped}"; fields name,first_release_date,cover.image_id; limit 50;`);
       if (result.length >= 50) throw new IgdbError('search-too-broad');
       return result.map(candidate);
     });

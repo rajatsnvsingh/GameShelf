@@ -69,7 +69,7 @@ try {
     }));
     assert.equal(state.require, 'undefined');
     assert.equal(state.process, 'undefined');
-    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'searchMatches', 'selectMatch', 'saveOverrides', 'pasteArtwork', 'replaceAllRescrape', 'getSettings', 'saveSettings', 'deleteMissing', 'rebuildCatalog']);
+    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'getMatchingStatus', 'searchMatches', 'selectMatch', 'saveOverrides', 'pasteArtwork', 'replaceAllRescrape', 'fetchArtwork', 'getSettings', 'saveSettings', 'deleteMissing', 'rebuildCatalog']);
     assert.deepEqual(state.info, { name: 'GameShelf', version: '0.1.0' });
     const preferences = await application.evaluate(async ({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -151,6 +151,7 @@ try {
     await page.getByRole('button', { name: 'Match automatically', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'No confident unique match' }).waitFor();
     await page.getByLabel('Search title', { exact: true }).fill('Corrected title');
+    await page.getByLabel('Search provider', { exact: true }).selectOption('thegamesdb');
     await page.getByRole('button', { name: 'Search candidates', exact: true }).click();
     const secondProviderCandidate = page.getByRole('list', { name: 'Match candidates' }).getByRole('listitem').filter({ hasText: 'thegamesdb' });
     await secondProviderCandidate.getByRole('button', { name: 'Use this match', exact: true }).waitFor();

@@ -151,7 +151,9 @@ test('configured order selects first match and preserves manual binding after re
   assert.ok(!f.calls.includes('api.thegamesdb.net'));
   const id = scanned.games[0].id;
   const candidates = value(await f.service.searchMatches(id, 'Game A')).candidates;
-  assert.deepEqual(candidates.map(candidate => candidate.providerId), ['igdb', 'thegamesdb']);
+  assert.deepEqual(candidates.map(candidate => candidate.providerId), ['igdb']);
+  const alternateCandidates = value(await f.service.searchMatches(id, 'Game A', 'thegamesdb')).candidates;
+  assert.deepEqual(alternateCandidates.map(candidate => candidate.providerId), ['thegamesdb']);
   const manual = value(await f.service.selectMatch(id, 'thegamesdb', '7')).games[0];
   assert.equal(manual.bindingSource, 'manual');
   assert.equal(manual.providerId, 'thegamesdb');

@@ -8,7 +8,7 @@ import { LibraryService } from '../src/main/library/service.ts';
 import { ConfigService } from '../src/main/config/service.ts';
 import type { MetadataProvider } from '../src/main/metadata/provider.ts';
 import type { OperationResult } from '../src/shared/api.ts';
-import { validateSearchRequest, validateSelectionRequest } from '../src/main/ipc.ts';
+import { validateArtworkRequest, validateSearchRequest, validateSelectionRequest } from '../src/main/ipc.ts';
 import { openCatalog } from '../src/main/database/catalog.ts';
 
 function value<T>(result: OperationResult<T>): T { if (!result.ok) assert.fail(result.message); return result.value; }
@@ -23,7 +23,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
     async search(query) {
       calls.push(`search:${query}`);
       if (query === 'Game A') return [{ recordId: '1', title: 'Game A' }];
-      return [{ recordId: '2', title: 'Game B', releaseYear: 1999 }, { recordId: '3', title: 'Game B', releaseYear: 2024 }];
+      return [{ recordId: '2', title: 'Game B', releaseYear: 1999, hasArtwork: true }, { recordId: '3', title: 'Game B', releaseYear: 2024 }];
     },
     async getGame(recordId) {
       calls.push(`detail:${recordId}`);
@@ -32,15 +32,21 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
     }
   };
   const entry = { provider, enabled: true, configured: true };
+  const artworkOnlyProvider: MetadataProvider = {
+    id: 'artwork-only', capabilities: { artwork: [], metadata: false },
+    async search(query) { calls.push(`artwork:${query}`); return [{ recordId: 'art', title: query }]; },
+    async getGame(recordId) { return { recordId, title: 'Game A', artwork: [] }; }
+  };
+  const artworkOnlyEntry = { provider: artworkOnlyProvider, enabled: false, configured: true };
   const config = new ConfigService(base);
-  const makeService = () => new LibraryService(base, config, async () => '', undefined, async () => ({ providers: [entry], threshold: 0.9 }));
+  const makeService = () => new LibraryService(base, config, async () => '', undefined, async () => ({ providers: [entry, artworkOnlyEntry], threshold: 0.9 }));
   const service = makeService();
   await service.chooseRoot(async () => root);
   t.after(async () => { service.close(); await rm(base, { recursive: true, force: true }); });
-  return { base, root, config, provider, entry, calls, service, makeService };
+  return { base, root, config, provider, entry, artworkOnlyEntry, calls, service, makeService };
 }
 
-test('scan persists exact matches, leaves ambiguous games unresolved, and never rematches old records', async t => {
+test('scan persists exact matches and retries every unresolved game without rematching saved bindings', async t => {
   const f = await fixture(t);
   const first = value(await f.service.scan());
   assert.equal(first.games[0].bindingSource, 'automatic');
@@ -48,14 +54,16 @@ test('scan persists exact matches, leaves ambiguous games unresolved, and never 
   assert.equal(first.games[1].matchStatus, 'unmatched');
   assert.ok(!JSON.stringify(first).includes('https://'));
   assert.equal(first.games[0].metadata.description, 'Fixture description');
+  assert.deepEqual(f.service.getMatchingStatus(), { phase: 'complete', attempted: 2, total: 2, matched: 1, gameName: 'Game B', message: '1 of 2 unresolved games matched.' });
+  f.artworkOnlyEntry.enabled = true;
   f.calls.length = 0;
   value(await f.service.scan());
-  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.calls, ['search:Game B']);
   value(await f.service.autoMatch(first.games[0].id));
-  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.calls, ['search:Game B']);
   await mkdir(join(f.root, 'New game'));
   value(await f.service.scan());
-  assert.deepEqual(f.calls, ['search:New game']);
+  assert.deepEqual(f.calls, ['search:Game B', 'search:Game B', 'search:New game']);
 });
 
 test('manual search/selection persists binding, respects overrides, and survives rescan and restart', async t => {
@@ -65,8 +73,9 @@ test('manual search/selection persists binding, respects overrides, and survives
   const db = new Database(join(f.base, 'data', 'library.db'));
   db.prepare('UPDATE games SET manual_overrides = ? WHERE id = ?').run(JSON.stringify({ title: 'My title', description: null, cover: 'custom.png' }), game.id);
   db.close();
-  const candidates = value(await f.service.searchMatches(game.id, 'Corrected title')).candidates;
+  const candidates = value(await f.service.searchMatches(game.id, 'Corrected title', 'fixture')).candidates;
   assert.equal(candidates.length, 2);
+  assert.equal(candidates[0].hasArtwork, true);
   assert.equal(value(await f.service.getCatalog()).games[1].matchStatus, 'unmatched');
   const saved = value(await f.service.selectMatch(game.id, 'fixture', '3')).games[1];
   assert.equal(saved.bindingSource, 'manual');
@@ -195,6 +204,18 @@ test('manual metadata and pasted artwork override provider data and survive rest
   f.service.close(); const restarted = f.makeService(); try { const saved = value(await restarted.getCatalog()).games[0]; assert.equal(saved.metadata.title, 'Personal title'); assert.match(saved.coverUrl!, /^gameshelf-artwork:/); } finally { restarted.close(); }
 });
 
+test('artwork preview leaves the saved metadata binding untouched when no provider artwork is available', async t => {
+  const f = await fixture(t);
+  const game = value(await f.service.scan()).games[0];
+  f.calls.length = 0;
+  const preview = await f.service.fetchArtwork(game.id);
+  assert.equal(preview.ok, false);
+  const refreshed = value(await f.service.getCatalog()).games[0];
+  assert.equal(refreshed.providerId, 'fixture');
+  assert.equal(refreshed.providerRecordId, '1');
+  assert.deepEqual(f.calls, ['detail:1']);
+});
+
 test('replace-all rescrape clears manual work only after successful bound-provider retrieval', async t => {
   const f = await fixture(t); const game = value(await f.service.scan()).games[0]; const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
   value(await f.service.saveOverrides(game.id, { title: 'Keep me' })); value(await f.service.pasteArtwork(game.id, 'cover', png));
@@ -215,9 +236,14 @@ test('maintenance removes only missing records and rebuild failure restores the 
 
 test('matching IPC rejects untrusted frames, arbitrary payloads, malformed IDs and oversized queries', () => {
   assert.deepEqual(validateSearchRequest(true, [1, 'Game A']), [1, 'Game A']);
+  assert.deepEqual(validateSearchRequest(true, [1, 'Game A', 'igdb']), [1, 'Game A', 'igdb']);
   assert.deepEqual(validateSelectionRequest(true, [1, 'igdb', '123']), [1, 'igdb', '123']);
+  assert.deepEqual(validateArtworkRequest(true, [1]), [1, undefined]);
+  assert.deepEqual(validateArtworkRequest(true, [1, '123']), [1, '123']);
   assert.throws(() => validateSearchRequest(false, [1, 'Game A']));
   assert.throws(() => validateSelectionRequest(false, [1, 'igdb', '123']));
-  for (const args of [[], [1], [1, 'x', 'extra'], ['1', 'x'], [1, ''], [1, 'x'.repeat(251)], [1, 'a\nb']]) assert.throws(() => validateSearchRequest(true, args));
+  for (const args of [[], [1], [1, 'x', 'extra', 'more'], ['1', 'x'], [1, ''], [1, 'x'.repeat(251)], [1, 'a\nb'], [1, 'x', '../provider']]) assert.throws(() => validateSearchRequest(true, args));
   for (const args of [[], [1, 'igdb'], [1, 'igdb', '1', {}], [0, 'igdb', '1'], [1, '../igdb', '1'], [1, 'igdb', {}]]) assert.throws(() => validateSelectionRequest(true, args));
+  for (const args of [[], [1, '0'], [1, '-1'], [1, 1], [1, '1', 'extra']]) assert.throws(() => validateArtworkRequest(true, args));
+  assert.throws(() => validateArtworkRequest(false, [1]));
 });
