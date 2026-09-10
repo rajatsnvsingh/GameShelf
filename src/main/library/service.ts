@@ -170,9 +170,9 @@ export class LibraryService {
         const path = await resolveInstallFolder(settings.root, game.relativePath);
         await this.verifySettings(settings);
         const error = await this.openDirectory(path);
-        return error ? { ok: false, message: 'Windows could not open the install folder.' } : { ok: true, value: null, message: 'Install folder opened.' };
+        return error ? { ok: false, message: 'Windows could not open the install location.' } : { ok: true, value: null, message: 'Install location opened.' };
       });
-    } catch { return { ok: false, message: 'The install folder is missing, inaccessible, or no longer a regular folder in this library.' }; }
+    } catch { return { ok: false, message: 'The install location is missing, inaccessible, linked, or no longer a recognized folder/archive in this library.' }; }
   }
 
   private async matchSettings(): Promise<string> {

@@ -57,15 +57,39 @@ test('empty collections remain collections, including a prefix-only folder', asy
   });
 });
 
-test('loose files never imply games or collections', async () => {
+test('only supported immediate archive files imply games', async () => {
   const { list, calls } = listing({
     '': [file('setup.exe'), file('Collection_File'), file('Game.iso'), directory('Collection_Files')],
     Collection_Files: [file('setup.exe'), file('Game.zip')]
   });
   const result = await scanLibrary(input, list);
   assert.equal(result.status, 'complete');
-  if (result.status === 'complete') assert.deepEqual(result.games, []);
+  if (result.status === 'complete') assert.deepEqual(result.games, [
+    { folderName: 'Game.zip', relativePath: 'Collection_Files/Game.zip', collectionPath: 'Collection_Files' },
+    { folderName: 'Game.iso', relativePath: 'Game.iso', collectionPath: null }
+  ]);
   assert.deepEqual(calls, ['', 'Collection_Files']);
+});
+
+test('discovers supported archives only at the root or directly in [C] collections', async () => {
+  const archiveInput = { ...input, collectionPrefix: '[C]' };
+  const { list, calls } = listing({
+    '': [file('Root.ZIP'), file('Unsupported.7z'), directory('[C] Classics'), directory('_Ignored'), directory('Folder Game')],
+    '[C] Classics': [file('Collection.rar'), file('Disc.iso'), file('setup.exe'), directory('_Hidden Game'), directory('Folder Member')]
+  });
+  const result = await scanLibrary(archiveInput, list);
+  assert.deepEqual(result, {
+    status: 'complete',
+    games: [
+      { folderName: 'Folder Game', relativePath: 'Folder Game', collectionPath: null },
+      { folderName: 'Root.ZIP', relativePath: 'Root.ZIP', collectionPath: null },
+      { folderName: 'Collection.rar', relativePath: '[C] Classics/Collection.rar', collectionPath: '[C] Classics' },
+      { folderName: 'Disc.iso', relativePath: '[C] Classics/Disc.iso', collectionPath: '[C] Classics' },
+      { folderName: 'Folder Member', relativePath: '[C] Classics/Folder Member', collectionPath: '[C] Classics' }
+    ],
+    collections: [{ folderName: '[C] Classics', displayName: 'Classics', relativePath: '[C] Classics' }]
+  });
+  assert.deepEqual(calls, ['', '[C] Classics']);
 });
 
 test('never visits game contents or treats collection members as nested collections', async () => {

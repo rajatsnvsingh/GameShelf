@@ -30,7 +30,7 @@ GameShelf/
     artwork/
   Games/
     Game A/
-    Collection_Example/
+    [C] Example/
       Game B/
 ```
 
@@ -39,7 +39,7 @@ The **portable base** is the persistent distribution directory on the external d
 Implemented resolution: unpackaged development/preview uses `app.getAppPath()`; packaged mode requires the local absolute `PORTABLE_EXECUTABLE_DIR` supplied by the [electron-builder portable launcher](https://www.electron.build/nsis/). There is no extraction-directory fallback. Actual packaged verification remains Phase 15. Same-drive sibling roots may contain `..` relative to the portable base; library roots cannot contain the app or overlap its data directory. This exception does not permit traversal in future game/artwork paths. Root checks use both lexical paths and resolved filesystem paths to catch junction overlap; they do not enumerate the selected folder.
 
 - INI library root: relative to the portable base (for example `Games`). Ask the user to select a root if missing/unavailable. The supported portable layout keeps the app, data, and library on the same drive; do not silently persist a drive-qualified fallback for a cross-drive selection.
-- Game and collection paths: relative to the selected library root. For Game B above, store `Collection_Example/Game B`, not just `Game B`.
+- Game and collection paths: relative to the selected library root. For Game B above, store `[C] Example/Game B`, not just `Game B`.
 - Artwork paths: relative to the artwork directory. Use app-controlled filenames, not remote names or absolute URLs as local identities.
 - Normalize separators and Windows path identity consistently; preserve the literal folder name for display. Resolve absolute paths only at runtime and reject traversal outside each permitted base.
 
@@ -47,7 +47,7 @@ Keep app data outside the scanned tree; validate root selection accordingly. Do 
 
 ## Configuration
 
-Use a single versioned `config.ini` for durable settings: relative root, collection prefix (default `Collection_`), collection-game visibility, provider enabled flags/order/API credentials, matching threshold, and default sort. Provider sections use stable provider IDs. Providers are disabled until configured and enabled by the user.
+Use a single versioned `config.ini` for durable settings: relative root, collection prefix (default `[C]`), collection-game visibility, provider enabled flags/order/API credentials, matching threshold, and default sort. Provider sections use stable provider IDs. Providers are disabled until configured and enabled by the user.
 
 The previously discussed `0.90` threshold is an initial tuning value, not proof of correctness; validate scoring with ambiguous-title fixtures. Selected providers are IGDB, TheGamesDB, and SteamGridDB only, in that default priority order. IGDB and TheGamesDB provide metadata; SteamGridDB provides supplemental artwork. Apply priority within supported capabilities, without replacing a metadata binding just to obtain artwork. Other providers are deferred. Concrete credential fields are defined during provider milestones, not imposed by sample configuration.
 
@@ -66,7 +66,7 @@ Input: root plus collection prefix and an injected directory-listing adapter. Ou
 
 Do not detect executables, archives, installers, DLC, editions, or installed state. Empty game folders count; empty collections remain collections. Use game folder names literally as initial titles/search terms; elaborate cleanup and rename detection are out of scope. Do not traverse directory links outside the root or allow them to increase scan depth. Keep unusual-folder policy simple rather than inferring content semantics.
 
-Phase 3 implements `scanLibrary({ root, collectionPrefix }, listDirectory)` in `src/main/library/scanner.ts`, with no imports or runtime dependencies. The adapter receives the absolute root separately from a relative directory (`''` for root, otherwise a single collection folder name). It must return a complete immediate listing or throw, distinguish directories/files/links/other entries without following links, and preserve literal entry names. Phase 5 adds `directory-reader.ts`: it validates listing depth, uses directory entries without inspecting game contents, rejects linked listing directories, and checks observed directory identity/modification times and the resolved root before reconciliation. Detected changes discard the scan.
+`scanLibrary({ root, collectionPrefix }, listDirectory)` in `src/main/library/scanner.ts` receives the absolute root separately from a relative directory (`''` for root, otherwise a single collection folder name). It returns immediate game folders and immediate `.zip`, `.rar`, or `.iso` files at either scanned level; it excludes directories beginning with `_`, never visits game folders, and does not inspect archive contents. The adapter must return a complete immediate listing or throw, distinguish directories/files/links/other entries without following links, and preserve literal entry names. `directory-reader.ts` validates listing depth, rejects linked listing directories, and checks observed directory identity/modification times and the resolved root before reconciliation. Detected changes discard the scan.
 
 The scanner skips links (including junctions) and special entries at both levels. Prefix matching is exact and case-sensitive. A prefix-only collection keeps an empty display name after prefix removal. Output uses forward-slash relative paths and nullable collection paths for game membership. Root entries and final results use ordinal string ordering, independent of locale or adapter order; listing arrays are not mutated. Unsafe entry names or duplicate case-insensitive sibling names fail the scan rather than producing ambiguous paths.
 
@@ -101,7 +101,7 @@ Provider metadata and manual overrides are separate JSON objects, so an explicit
 
 `LibraryService` owns the catalog connection, manual scan orchestration, and folder-open operation. Existing catalogs open on demand for browsing; selecting a root or reading an empty catalog does not create a database. Only a complete manual scan creates a new catalog and reconciles it. Concurrent operations are refused, configuration is checked before reconciliation, and shutdown closes the connection and prevents late writes. Invalid or corrupt catalogs report errors without an automatic replacement.
 
-The narrow preload API adds `getCatalog`, `scanLibrary`, and `openInstallFolder(gameId)`. IPC validates the owning main frame and exact payload shape; folder opening accepts only a positive safe integer ID. Main loads the stored relative path, validates each directory component against the current root without listing contents, rejects links/traversal, and invokes Electron `shell.openPath`. Raw filesystem/OS errors and provider fields are not sent to the renderer.
+The narrow preload API adds `getCatalog`, `scanLibrary`, and `openInstallFolder(gameId)`. IPC validates the owning main frame and exact payload shape; opening accepts only a positive safe integer ID. Main loads the stored relative path, validates each component against the current root without listing contents, rejects links/traversal, and invokes Electron `shell.openPath`: game folders and ISO parent folders open in Explorer, while ZIP/RAR files open directly. Raw filesystem/OS errors and provider fields are not sent to the renderer.
 
 The minimal renderer presents collections, game lists, local details, presence, and manual actions. Selection and navigation remain transient. Browsing an existing catalog works when the root is unavailable; failed scans leave presence unchanged. Search, metadata/artwork, and the full Home/Settings experience remain later milestones.
 

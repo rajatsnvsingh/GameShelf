@@ -158,8 +158,8 @@
     busy = true;
     try {
       const result = await window.gameShelf.openInstallFolder(selected.id);
-      notice = result.message ?? 'Install folder opened.';
-    } catch { notice = 'Unable to open the install folder. Please retry.'; }
+      notice = result.message ?? 'Install location opened.';
+    } catch { notice = 'Unable to open the install location. Please retry.'; }
     finally { busy = false; }
   }
 

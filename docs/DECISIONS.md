@@ -6,14 +6,14 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 
 | Area | Decision |
 | --- | --- |
-| Product | Local installer-folder catalog named GameShelf. Only game filesystem action: **Open Install Folder**. |
+| Product | Local installer-folder/archive catalog named GameShelf. Only game filesystem action: **Open Install Location**. |
 | Platform | Windows-only portable desktop app, targeting x64; no installation/admin requirement or background service. |
 | Stack | Electron + Svelte 5 + TypeScript + Vite, embedded SQLite, INI configuration. Earlier React/browser-mode ideas are superseded. |
 | Storage | Durable config, database, cached/custom artwork, and any logs stay with the portable library. Temporary host Electron files are acceptable. |
 | Paths | Root relative to portable base; game/collection paths relative to root; artwork paths relative to cache. Preserve collection segments. No fixed drive letters. |
-| Discovery | One user-selected root. Immediate directories are games, except `Collection_` directories whose immediate child directories are games. No deeper scan or file inspection. |
-| Names | Literal game folder names initially. Collection display names omit the prefix. No edition parsing or rename inference. |
-| Collections | Separate collection views; configurable inclusion of members in main library. Members always remain searchable. Prefix defaults to `Collection_` and is an INI setting. |
+| Discovery | One user-selected root. Immediate directories are games except `_`-prefixed directories, which are excluded. `[C]` directories are collections whose immediate child directories are games. Immediate `.zip`, `.rar`, and `.iso` files at either scanned level are games. No deeper scan or archive inspection. |
+| Names | Literal game folder/archive file names initially. Collection display names omit the prefix. No edition parsing or rename inference. |
+| Collections | Separate collection views; configurable inclusion of members in main library. Members always remain searchable. Prefix defaults to `[C]` and is an INI setting. |
 | Scans | Manual only. Add new, mark missing, never auto-delete. Failed/incomplete scans do not change presence state. |
 | Identity | Relative path initially identifies a game. Rename/move may become an old missing entry and a new entry. |
 | Metadata | Optional; multiple enabled providers with INI priority and credentials. Only confident, unambiguous auto-matches; otherwise manual matching. |
@@ -45,7 +45,7 @@ Use `better-sqlite3` 13.0.3 with its shipped native binary, verified on this Win
 
 ## Phase 5 local catalog workflow
 
-Connect the existing scanner and repository through one main-process library service. Create the database on the first successful manual scan, open existing data for offline browsing, and close it on exit. Use a small collection/game/details interface with transient selection. Resolve **Open Install Folder** from a validated game ID in main and reject missing, non-directory, or linked paths. Automated Electron checks capture the native shell target rather than opening Explorer; no providers or additional dependencies are introduced.
+Connect the scanner and repository through one main-process library service. Create the database on the first successful manual scan, open existing data for offline browsing, and close it on exit. Use a small collection/game/details interface with transient selection. Resolve **Open Install Location** from a validated game ID in main and reject missing or linked paths. It opens folders and ISO parent folders, and opens ZIP/RAR files directly. Automated Electron checks capture the native shell target rather than opening Explorer; no providers or additional dependencies are introduced.
 
 ## Phase 6 matching foundation
 

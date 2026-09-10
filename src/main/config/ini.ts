@@ -37,7 +37,7 @@ export function writeIni(ini: Ini): string {
 export function withDefaults(ini: Ini): Ini {
   const defaults: Ini = {
     app: { version: '1' },
-    library: { root: '', collectionPrefix: 'Collection_', showCollectionGames: 'true' },
+    library: { root: '', collectionPrefix: '[C]', showCollectionGames: 'true' },
     metadata: { matchingThreshold: '0.90', providerOrder: 'igdb,thegamesdb,steamgriddb' },
     view: { defaultSort: 'title' }
   };

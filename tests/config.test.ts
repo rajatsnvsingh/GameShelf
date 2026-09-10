@@ -33,7 +33,7 @@ test('rejects cross-drive, drive-qualified, UNC, app-containing and data-overlap
 
 test('INI defaults and string round trips preserve punctuation and future secrets', () => {
   const ini = withDefaults(parseIni('\uFEFF; comment\n[library]\nroot=Jeux 日本語\n[provider.future]\nkey="fake;#=token"\n'));
-  assert.equal(ini.library.collectionPrefix, 'Collection_');
+  assert.equal(ini.library.collectionPrefix, '[C]');
   assert.equal(ini.library.showCollectionGames, 'true');
   assert.equal(ini.metadata.providerOrder, 'igdb,thegamesdb,steamgriddb');
   assert.equal(ini.metadata.matchingThreshold, '0.90');

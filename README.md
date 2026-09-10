@@ -1,11 +1,11 @@
 # GameShelf
 
-GameShelf is a Windows-only portable catalog for game installer folders on an external drive. Browse a local library, optionally enrich it with metadata and artwork, and use **Open Install Folder** to open a game's directory in Windows Explorer.
+GameShelf is a Windows-only portable catalog for game installer folders and supported archives on an external drive. Browse a local library, optionally enrich it with metadata and artwork, and use **Open Install Location** in Windows Explorer.
 
 ## Scope
 
 - One user-selected library root. Ask for a root when none is configured or the configured location is unavailable; never assume a directory.
-- Immediate folders are games. Immediate folders prefixed `Collection_` are collections; their immediate child folders are games. Do not scan deeper or inspect game-folder contents.
+- Immediate folders are games, except folders beginning with `_`, which are excluded. Immediate folders prefixed `[C]` are collections; their immediate child folders and supported archive files (`.zip`, `.rar`, `.iso`) are games. Supported archive files directly under the root are also games. Do not scan deeper or inspect game-folder contents.
 - Manual scans reconcile discoveries, add new entries, and mark absent entries missing. Never automatically delete catalog entries or modify game folders.
 - Metadata is optional. Selected providers are IGDB, then TheGamesDB, then SteamGridDB (supplemental artwork only); other providers are deferred. Enabled providers run in configurable priority order within their capabilities; only high-confidence matches are accepted automatically. Other entries support manual matching.
 - Manual metadata and artwork overrides survive scans and normal refreshes. Only an explicit replace-all rescrape may replace them.
@@ -22,7 +22,7 @@ Use Playnite as visual direction for a windowed, mouse-and-keyboard interface:
 - **Needs Matching:** unresolved games, candidate selection, and manual search.
 - **Settings:** durable configuration and maintenance actions.
 
-The sole game filesystem action is **Open Install Folder**. Catalog editing and maintenance do not operate on installer files.
+The sole game filesystem action is **Open Install Location**. It opens folders and ISO parent folders in Explorer, while ZIP/RAR archives are opened directly. Catalog editing and maintenance do not operate on installer files.
 
 ## Stack and distribution
 
@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–13 are implemented. Select a library, scan manually, browse games and collections, filter/sort locally, match metadata, and use **Open Install Folder**. Artwork and manual work remain local and offline; settings persist durable catalog preferences and redacted provider status. Maintenance/rebuild and portable distribution remain later milestones.
+Phases 1–14 are implemented. Select a library, scan manually, browse games and collections, filter/sort locally, match metadata, and use **Open Install Location**. Artwork and manual work remain local and offline; settings persist durable catalog preferences and redacted provider status. Portable distribution remains a later milestone.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -71,7 +71,7 @@ Phase 4 adds `src/main/database`. `openCatalog(portableBase, relativeLibraryRoot
 
 Run `npm run dev`, then select **Choose library folder**. Select a folder on the same drive as this checkout, such as a `Games` subfolder or a sibling folder. Selection checks the folder itself but does not enumerate its contents or scan. Cancel leaves configuration unchanged. Use **Retry** after reconnecting an unavailable drive or correcting configuration.
 
-Select **Scan library** to update the catalog, then select a collection or game to view its details. **Open Install Folder** resolves the stored game ID to its current directory in main and asks Windows to open it. Missing, inaccessible, or linked game paths return an error. Missing records remain visible; an unavailable library does not prevent browsing an existing catalog. Startup, Retry, and root selection never scan automatically.
+Select **Scan library** to update the catalog, then select a collection or game to view its details. **Open Install Location** resolves the stored game ID in main. It opens game folders and ISO parent folders in Explorer; ZIP/RAR archives are opened directly. Missing, inaccessible, or linked game paths return an error. Missing records remain visible; an unavailable library does not prevent browsing an existing catalog. Startup, Retry, and root selection never scan automatically.
 
 During development and compiled preview, the checkout is the portable base, regardless of the shell's working directory. `config.ini` is created there only after a valid selection. A packaged build will use electron-builder's `PORTABLE_EXECUTABLE_DIR`; it refuses to guess a base if that value is unavailable. Packaged validation remains Phase 15.
 

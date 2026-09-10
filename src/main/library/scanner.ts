@@ -27,6 +27,13 @@ export type ScanResult =
     readonly relativePath: string;
   } };
 
+const archiveExtensions = new Set(['.zip', '.rar', '.iso']);
+
+export function isSupportedGameArchive(name: string): boolean {
+  const extension = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return archiveExtensions.has(extension);
+}
+
 function compare(a: string, b: string): number { return a < b ? -1 : a > b ? 1 : 0; }
 
 function validName(name: string): boolean {
@@ -59,18 +66,24 @@ export async function scanLibrary(
     const rootEntries = await listDirectory(input.root, '');
     if (!validEntries(rootEntries)) return { status: 'failed', error: { code: 'invalid-entry', relativePath: '' } };
     for (const entry of [...rootEntries].sort((a, b) => compare(a.name, b.name))) {
-      if (entry.kind !== 'directory') continue;
+      if (entry.kind === 'file' && isSupportedGameArchive(entry.name)) {
+        games.push({ folderName: entry.name, relativePath: entry.name, collectionPath: null });
+        continue;
+      }
+      if (entry.kind !== 'directory' || entry.name.startsWith('_')) continue;
       if (!entry.name.startsWith(input.collectionPrefix)) {
         games.push({ folderName: entry.name, relativePath: entry.name, collectionPath: null });
         continue;
       }
 
-      collections.push({ folderName: entry.name, displayName: entry.name.slice(input.collectionPrefix.length), relativePath: entry.name });
+      collections.push({ folderName: entry.name, displayName: entry.name.slice(input.collectionPrefix.length).trimStart(), relativePath: entry.name });
       listingPath = entry.name;
       const children = await listDirectory(input.root, listingPath);
       if (!validEntries(children)) return { status: 'failed', error: { code: 'invalid-entry', relativePath: listingPath } };
       for (const child of children) {
-        if (child.kind === 'directory') {
+        if (child.kind === 'file' && isSupportedGameArchive(child.name)) {
+          games.push({ folderName: child.name, relativePath: `${entry.name}/${child.name}`, collectionPath: entry.name });
+        } else if (child.kind === 'directory' && !child.name.startsWith('_')) {
           games.push({ folderName: child.name, relativePath: `${entry.name}/${child.name}`, collectionPath: entry.name });
         }
       }

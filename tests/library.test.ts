@@ -19,8 +19,8 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }, reader =
   const base = await mkdtemp(join(tmpdir(), 'gameshelf-library-'));
   const root = join(base, 'Games 日本語');
   await mkdir(join(root, 'Game A', 'Never Visit'), { recursive: true });
-  await mkdir(join(root, 'Collection_One', 'Game B'), { recursive: true });
-  await mkdir(join(root, 'Collection_Empty'));
+  await mkdir(join(root, '[C] One', 'Game B'), { recursive: true });
+  await mkdir(join(root, '[C] Empty'));
   await writeFile(join(root, 'setup.exe'), 'fixture only');
   await writeFile(join(root, 'Game A', 'sentinel.txt'), 'untouched fixture');
   const config = new ConfigService(base);
@@ -48,22 +48,42 @@ test('manual scan uses real shallow listings, persists membership, and opens the
   });
   await service.chooseRoot(async () => root);
   const catalog = value(await service.scan());
-  assert.deepEqual(visits, ['', 'Collection_Empty', 'Collection_One']);
+  assert.deepEqual(visits, ['', '[C] Empty', '[C] One']);
   assert.equal(catalog.games.length, 2);
   assert.equal(catalog.collections.length, 2);
   const member = catalog.games.find(game => game.folderName === 'Game B')!;
   assert.equal(member.collectionId, catalog.collections.find(collection => collection.displayName === 'One')!.id);
   assert.equal((await service.openInstallFolder(member.id)).ok, true);
-  assert.deepEqual(opened, [await realpath(join(root, 'Collection_One', 'Game B'))]);
+  assert.deepEqual(opened, [await realpath(join(root, '[C] One', 'Game B'))]);
   assert.equal(await readFile(join(root, 'Game A', 'sentinel.txt'), 'utf8'), 'untouched fixture');
   assert.ok((await readFile(join(base, 'data', 'library.db'))).length > 0);
+});
+
+test('scan recognizes immediate archives, skips underscore folders, and opens archive-specific locations', async t => {
+  const { root, service, opened } = await fixture(t);
+  await writeFile(join(root, 'Root.zip'), 'archive');
+  await writeFile(join(root, 'Disc.iso'), 'image');
+  await writeFile(join(root, '[C] One', 'Collection.RAR'), 'archive');
+  await mkdir(join(root, '_Private', 'Do Not Scan'), { recursive: true });
+  await mkdir(join(root, '[C] One', '_Hidden Member'), { recursive: true });
+  await service.chooseRoot(async () => root);
+  const catalog = value(await service.scan());
+  assert.equal(catalog.games.some(game => game.folderName === '_Private' || game.folderName === '_Hidden Member'), false);
+  const zip = catalog.games.find(game => game.folderName === 'Root.zip')!;
+  const rar = catalog.games.find(game => game.folderName === 'Collection.RAR')!;
+  const iso = catalog.games.find(game => game.folderName === 'Disc.iso')!;
+  assert.ok(zip && rar && iso);
+  assert.equal((await service.openInstallFolder(zip.id)).ok, true);
+  assert.equal((await service.openInstallFolder(rar.id)).ok, true);
+  assert.equal((await service.openInstallFolder(iso.id)).ok, true);
+  assert.deepEqual(opened, [join(root, 'Root.zip'), join(root, '[C] One', 'Collection.RAR'), await realpath(root)]);
 });
 
 test('missing folders fail opening before a rescan and reappear with the same catalog identity', async t => {
   const { base, root, service, opened } = await fixture(t);
   await service.chooseRoot(async () => root);
   const original = value(await service.scan()).games.find(game => game.folderName === 'Game B')!;
-  const folder = join(root, 'Collection_One', 'Game B');
+  const folder = join(root, '[C] One', 'Game B');
   await rename(folder, join(base, 'Absent'));
   assert.equal((await service.openInstallFolder(original.id)).ok, false);
   assert.deepEqual(opened, []);
@@ -94,7 +114,7 @@ test('a collection-listing failure after discoveries leaves all persisted record
   const { root, service } = await fixture(t, async path => {
     const reader = await createScanReader(path);
     return { ...reader, async listDirectory(requestRoot, relative) {
-      if (fail && relative === 'Collection_One') throw new Error('fixture listing failure');
+      if (fail && relative === '[C] One') throw new Error('fixture listing failure');
       return reader.listDirectory(requestRoot, relative);
     } };
   });
@@ -111,7 +131,7 @@ test('detected directory changes before reconciliation discard the entire scan',
   const { root, service } = await fixture(t, async path => {
     const reader = await createScanReader(path);
     return { ...reader, async verifyUnchanged() {
-      if (change) await rename(join(path, 'Collection_One'), join(path, 'Changed'));
+      if (change) await rename(join(path, '[C] One'), join(path, 'Changed'));
       await reader.verifyUnchanged();
     } };
   });
@@ -125,14 +145,14 @@ test('detected directory changes before reconciliation discard the entire scan',
 test('real listing skips junctions and rejects paths beyond its allowed depth', async t => {
   const { base, root, service } = await fixture(t);
   await mkdir(join(base, 'Outside', 'Not a game'), { recursive: true });
-  await symlink(join(base, 'Outside'), join(root, 'Collection_Link'), 'junction');
-  await symlink(join(base, 'Outside'), join(root, 'Collection_One', 'Linked Game'), 'junction');
+  await symlink(join(base, 'Outside'), join(root, '[C] Link'), 'junction');
+  await symlink(join(base, 'Outside'), join(root, '[C] One', 'Linked Game'), 'junction');
   await service.chooseRoot(async () => root);
   const catalog = value(await service.scan());
   assert.equal(catalog.games.length, 2);
   assert.equal(catalog.collections.length, 2);
   const reader = await createScanReader(root);
-  for (const path of ['..', '../Outside', 'Collection_One/Game B', 'Collection_Link']) {
+  for (const path of ['..', '../Outside', '[C] One/Game B', '[C] Link']) {
     await assert.rejects(reader.listDirectory(root, path));
   }
   await assert.rejects(reader.listDirectory(join(base, 'Other'), ''));
@@ -145,8 +165,8 @@ test('folder resolution rejects traversal, files, deeper paths, and changed coll
   for (const path of ['../Outside', root, 'setup.exe', 'Game A/sentinel.txt', 'Game A/Never Visit/Deeper']) {
     await assert.rejects(resolveInstallFolder(root, path));
   }
-  await rename(join(root, 'Collection_One'), join(base, 'Moved Collection'));
-  await symlink(join(base, 'Moved Collection'), join(root, 'Collection_One'), 'junction');
+  await rename(join(root, '[C] One'), join(base, 'Moved Collection'));
+  await symlink(join(base, 'Moved Collection'), join(root, '[C] One'), 'junction');
   assert.equal((await service.openInstallFolder(member.id)).ok, false);
   assert.deepEqual(opened, []);
 });
