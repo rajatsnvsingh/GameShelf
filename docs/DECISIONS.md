@@ -63,6 +63,10 @@ Save the local scan before enriching newly discovered games only. Keep existing 
 
 Add TheGamesDB as the second optional metadata provider, using its API key in ignored INI settings and bounded GET requests to its fixed API origin. Resolve company/genre IDs only when needed, cache names in memory, reject incomplete search pages, and omit age ratings from review scores. Preserve existing configured order; new configurations default to IGDB then TheGamesDB with both disabled. Skip disabled/misconfigured entries independently and preserve bindings across order changes. No additional dependency, schema, renderer bridge, or artwork behavior is needed.
 
+## Phase 10 artwork cache
+
+Add a SQLite artwork association and opaque local cache filenames. Cache selected provider artwork and use SteamGridDB only as an enabled supplemental artwork lookup; it cannot create descriptive metadata bindings. Use bounded HTTPS image downloads and atomic replacement, preserve manual rows, and expose cache files only through a validated local protocol. No renderer-side remote image requests or background refreshes are allowed.
+
 ## Implementation choices still to validate
 
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.

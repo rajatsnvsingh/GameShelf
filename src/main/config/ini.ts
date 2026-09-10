@@ -38,7 +38,7 @@ export function withDefaults(ini: Ini): Ini {
   const defaults: Ini = {
     app: { version: '1' },
     library: { root: '', collectionPrefix: 'Collection_', showCollectionGames: 'true' },
-    metadata: { matchingThreshold: '0.90', providerOrder: 'igdb,thegamesdb' },
+    metadata: { matchingThreshold: '0.90', providerOrder: 'igdb,thegamesdb,steamgriddb' },
     view: { defaultSort: 'title' }
   };
   for (const [name, entries] of Object.entries(defaults)) {

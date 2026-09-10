@@ -185,6 +185,34 @@ test('repository automatic saves cannot overwrite a manual binding; invalid save
   } finally { repo.close(); }
 });
 
+test('manual metadata and pasted artwork override provider data and survive restart', async t => {
+  const f = await fixture(t); const game = value(await f.service.scan()).games[0];
+  const overridden = value(await f.service.saveOverrides(game.id, { title: 'Personal title', description: null, genres: ['Custom'] })).games[0];
+  assert.equal(overridden.metadata.title, 'Personal title'); assert.equal(overridden.metadata.description, undefined); assert.deepEqual(overridden.metadata.genres, ['Custom']);
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const pasted = value(await f.service.pasteArtwork(game.id, 'cover', png)).games[0]; assert.match(pasted.coverUrl!, /^gameshelf-artwork:\/\/local\/1-manual-/);
+  assert.equal((await f.service.pasteArtwork(game.id, 'cover', new Uint8Array([1]))).ok, false);
+  f.service.close(); const restarted = f.makeService(); try { const saved = value(await restarted.getCatalog()).games[0]; assert.equal(saved.metadata.title, 'Personal title'); assert.match(saved.coverUrl!, /^gameshelf-artwork:/); } finally { restarted.close(); }
+});
+
+test('replace-all rescrape clears manual work only after successful bound-provider retrieval', async t => {
+  const f = await fixture(t); const game = value(await f.service.scan()).games[0]; const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  value(await f.service.saveOverrides(game.id, { title: 'Keep me' })); value(await f.service.pasteArtwork(game.id, 'cover', png));
+  f.provider.getGame = async () => { throw new Error('offline'); };
+  const failed = await f.service.replaceAllRescrape(game.id); assert.equal(failed.ok, false); assert.equal(value(await f.service.getCatalog()).games[0].metadata.title, 'Keep me');
+  f.provider.getGame = async recordId => ({ recordId, title: 'Game A', description: 'Fresh provider text', artwork: [] });
+  const refreshed = value(await f.service.replaceAllRescrape(game.id)).games[0]; assert.equal(refreshed.metadata.title, 'Game A'); assert.equal(refreshed.metadata.description, 'Fresh provider text'); assert.equal(refreshed.coverUrl, undefined);
+});
+
+test('maintenance removes only missing records and rebuild failure restores the original catalog', async t => {
+  const f = await fixture(t); const first = value(await f.service.scan());
+  await rm(join(f.root, 'Game B'), { recursive: true, force: true }); value(await f.service.scan());
+  const removed = value(await f.service.deleteMissing()); assert.equal(removed.games.length, 1); assert.equal(removed.games[0].id, first.games[0].id);
+  const original = value(await f.service.getCatalog());
+  await rm(f.root, { recursive: true, force: true }); const failed = await f.service.rebuildCatalog(); assert.equal(failed.ok, false);
+  assert.deepEqual(value(await f.service.getCatalog()), original);
+});
+
 test('matching IPC rejects untrusted frames, arbitrary payloads, malformed IDs and oversized queries', () => {
   assert.deepEqual(validateSearchRequest(true, [1, 'Game A']), [1, 'Game A']);
   assert.deepEqual(validateSelectionRequest(true, [1, 'igdb', '123']), [1, 'igdb', '123']);

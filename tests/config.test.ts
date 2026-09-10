@@ -35,9 +35,20 @@ test('INI defaults and string round trips preserve punctuation and future secret
   const ini = withDefaults(parseIni('\uFEFF; comment\n[library]\nroot=Jeux 日本語\n[provider.future]\nkey="fake;#=token"\n'));
   assert.equal(ini.library.collectionPrefix, 'Collection_');
   assert.equal(ini.library.showCollectionGames, 'true');
-  assert.equal(ini.metadata.providerOrder, 'igdb,thegamesdb');
+  assert.equal(ini.metadata.providerOrder, 'igdb,thegamesdb,steamgriddb');
   assert.equal(ini.metadata.matchingThreshold, '0.90');
   assert.deepEqual(parseIni(writeIni(ini)), ini);
+});
+
+test('settings persist durable values while returning only redacted provider status', async t => {
+  const base = await mkdtemp(join(tmpdir(), 'gameshelf-settings-'));
+  t.after(() => rm(base, { recursive: true, force: true }));
+  const service = new ConfigService(base);
+  const before = await service.getSettings();
+  await service.saveSettings({ collectionPrefix: 'Set_', showCollectionGames: false, matchingThreshold: 0.75, defaultSort: 'releaseDate', providerOrder: ['thegamesdb', 'igdb'], providers: { igdb: { enabled: true, configured: false }, thegamesdb: { enabled: true, configured: false }, steamgriddb: { enabled: false, configured: false } }, credentials: { igdbClientId: 'id', igdbClientSecret: 'secret', thegamesdbApiKey: 'key' } });
+  const after = await service.getSettings();
+  assert.equal(before.providers.igdb.configured, false); assert.equal(after.collectionPrefix, 'Set_'); assert.equal(after.showCollectionGames, false); assert.equal(after.matchingThreshold, 0.75); assert.deepEqual(after.providerOrder, ['thegamesdb', 'igdb']); assert.equal(after.providers.igdb.configured, true); assert.ok(!JSON.stringify(after).includes('secret'));
+  await assert.rejects(() => service.saveSettings({ ...after, collectionPrefix: '../bad', providers: after.providers }));
 });
 
 test('malformed INI and invalid settings are rejected without including values in errors', () => {

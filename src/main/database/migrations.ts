@@ -39,6 +39,19 @@ export const migrations: readonly Migration[] = [{
     ) STRICT;
     CREATE INDEX games_collection_id ON games(collection_id);
   `
+}, {
+  version: 2,
+  name: 'artwork-cache',
+  sql: `
+    CREATE TABLE artwork (
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('cover', 'background')),
+      source TEXT NOT NULL CHECK (source IN ('provider', 'manual')),
+      local_path TEXT NOT NULL,
+      remote_url TEXT,
+      PRIMARY KEY (game_id, kind)
+    ) STRICT;
+  `
 }];
 
 export function applyMigrations(db: Database.Database, steps: readonly Migration[] = migrations): void {

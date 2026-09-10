@@ -22,7 +22,7 @@ export interface GameDetails extends SearchCandidate {
 
 export interface MetadataProvider {
   readonly id: string;
-  readonly capabilities: { readonly artwork: readonly ArtworkReference['kind'][] };
+  readonly capabilities: { readonly artwork: readonly ArtworkReference['kind'][]; readonly metadata?: boolean };
   search(query: string): Promise<readonly SearchCandidate[]>;
   getGame(recordId: string): Promise<GameDetails | null>;
 }

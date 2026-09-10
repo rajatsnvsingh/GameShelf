@@ -2,11 +2,12 @@ import { constants } from 'node:fs';
 import { access, open, readFile, realpath, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { LibraryState } from '../../shared/api.ts';
+import type { LibraryState, SettingsUpdate, SettingsView } from '../../shared/api.ts';
 import { parseIni, withDefaults, writeIni, type Ini } from './ini.ts';
 import { relativeRoot, resolveRoot, validateRootLayout } from './paths.ts';
 import type { IgdbSettings } from '../metadata/igdb.ts';
 import type { TheGamesDbSettings } from '../metadata/thegamesdb.ts';
+import type { SteamGridDbSettings } from '../metadata/steamgriddb.ts';
 
 export async function atomicWrite(path: string, content: string): Promise<void> {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -48,13 +49,15 @@ export class ConfigService {
   }
 
   // Main-process use only; never expose the full INI or provider credentials to views.
-  async getMetadataSettings(): Promise<{ igdb: IgdbSettings; thegamesdb: TheGamesDbSettings; threshold: number; providerOrder: string[] }> {
+  async getMetadataSettings(): Promise<{ igdb: IgdbSettings; thegamesdb: TheGamesDbSettings; steamgriddb: SteamGridDbSettings; threshold: number; providerOrder: string[] }> {
     const ini = await this.read();
     const provider = ini['provider.igdb'] ?? {};
     const second = ini['provider.thegamesdb'] ?? {};
+    const third = ini['provider.steamgriddb'] ?? {};
     // An invalid enabled flag disables only that provider; other providers and local use survive.
     return { igdb: { enabled: provider.enabled === 'true', clientId: provider.clientId ?? '', clientSecret: provider.clientSecret ?? '' },
       thegamesdb: { enabled: second.enabled === 'true', apiKey: second.apiKey ?? '' },
+      steamgriddb: { enabled: third.enabled === 'true', apiKey: third.apiKey ?? '' },
       threshold: Number(ini.metadata.matchingThreshold),
       providerOrder: ini.metadata.providerOrder.split(',').map(id => id.trim()).filter(Boolean) };
   }
@@ -63,6 +66,18 @@ export class ConfigService {
     const ini = await this.read();
     if (!ini.library.root) return null;
     return { root: resolveRoot(this.base, ini.library.root), relativeRoot: ini.library.root, collectionPrefix: ini.library.collectionPrefix };
+  }
+  async getSettings(): Promise<SettingsView> {
+    const ini = await this.read(); const metadata = await this.getMetadataSettings();
+    return { collectionPrefix: ini.library.collectionPrefix, showCollectionGames: ini.library.showCollectionGames === 'true', matchingThreshold: metadata.threshold, defaultSort: ini.view.defaultSort as 'title' | 'releaseDate', providerOrder: metadata.providerOrder,
+      providers: { igdb: { enabled: metadata.igdb.enabled, configured: Boolean(metadata.igdb.clientId && metadata.igdb.clientSecret) }, thegamesdb: { enabled: metadata.thegamesdb.enabled, configured: Boolean(metadata.thegamesdb.apiKey) }, steamgriddb: { enabled: metadata.steamgriddb.enabled, configured: Boolean(metadata.steamgriddb.apiKey) } } };
+  }
+  async saveSettings(input: SettingsUpdate): Promise<SettingsView> {
+    if (!input || typeof input !== 'object' || typeof input.collectionPrefix !== 'string' || !input.collectionPrefix || /[<>:"/\\|?*\x00-\x1f]/.test(input.collectionPrefix) || typeof input.showCollectionGames !== 'boolean' || !Number.isFinite(input.matchingThreshold) || input.matchingThreshold < 0 || input.matchingThreshold > 1 || !['title', 'releaseDate'].includes(input.defaultSort) || !Array.isArray(input.providerOrder) || input.providerOrder.some(id => !['igdb', 'thegamesdb', 'steamgriddb'].includes(id))) throw new Error('Invalid settings.');
+    const ini = await this.read(); ini.library.collectionPrefix = input.collectionPrefix; ini.library.showCollectionGames = String(input.showCollectionGames); ini.metadata.matchingThreshold = input.matchingThreshold.toFixed(2); ini.metadata.providerOrder = [...new Set(input.providerOrder)].join(','); ini.view.defaultSort = input.defaultSort;
+    for (const id of ['igdb', 'thegamesdb', 'steamgriddb'] as const) { const section = ini[`provider.${id}`] ??= {}; section.enabled = input.providers[id]?.enabled ? 'true' : 'false'; }
+    if (input.credentials) { if (input.credentials.igdbClientId !== undefined) (ini['provider.igdb'] ??= {}).clientId = input.credentials.igdbClientId; if (input.credentials.igdbClientSecret !== undefined) (ini['provider.igdb'] ??= {}).clientSecret = input.credentials.igdbClientSecret; if (input.credentials.thegamesdbApiKey !== undefined) (ini['provider.thegamesdb'] ??= {}).apiKey = input.credentials.thegamesdbApiKey; if (input.credentials.steamgriddbApiKey !== undefined) (ini['provider.steamgriddb'] ??= {}).apiKey = input.credentials.steamgriddbApiKey; }
+    await atomicWrite(this.file, writeIni(ini)); return this.getSettings();
   }
 
   async getState(): Promise<LibraryState> {

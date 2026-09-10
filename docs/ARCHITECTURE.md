@@ -161,6 +161,8 @@ Main-only configuration adds `[provider.thegamesdb]` enabled/apiKey. The missing
 
 ## Artwork and offline behavior
 
+Phase 10 adds the `artwork` table and `data/artwork` cache. A successful explicit match may cache artwork from its selected metadata record, then use enabled SteamGridDB as supplemental fallback. The cache uses bounded HTTPS downloads, validates JPEG/PNG/WebP signatures, writes a unique temporary sibling before atomic replacement, and stores only an opaque relative filename. The renderer receives a `gameshelf-artwork:` local URL, never a remote URL; its protocol handler only resolves validated cache basenames. Missing cache records render a bundled CSS placeholder. Provider cache writes cannot replace a `manual` row reserved for Phase 11.
+
 Store covers/backgrounds under `data/artwork`, with database references. Precedence is **manual artwork > cached provider artwork > bundled placeholder**. Clipboard paste reads image data only on a user action, validates/decodes it, and writes a local asset. Normal refresh and cache maintenance must protect manual assets.
 
 Provider downloads use temporary files followed by atomic replacement; failures leave usable cached/manual assets intact. The renderer never hotlinks remote images. Bundle UI assets/fonts. All network access is confined to enabled metadata/artwork providers and their required authentication/image endpoints. No startup scan, telemetry, background polling, updater, or unrelated network request.

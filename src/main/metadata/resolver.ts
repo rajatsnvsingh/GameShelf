@@ -47,6 +47,8 @@ export async function resolveMetadata(
   for (const { provider, enabled, configured } of providers) {
     if (visited.has(provider.id)) continue;
     visited.add(provider.id);
+    // Artwork-only sources (SteamGridDB) must never supply a descriptive metadata binding.
+    if (provider.capabilities.metadata === false) continue;
     const record = (outcome: MatchAttempt['outcome']) => attempts.push({ providerId: provider.id, outcome });
     if (!enabled) { record('disabled'); continue; }
     if (!configured) { record('unconfigured'); continue; }

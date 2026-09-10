@@ -30,6 +30,7 @@ export interface GameRecord {
   providerMetadata: Record<string, unknown>;
   manualOverrides: Record<string, unknown>;
 }
+export interface ArtworkRecord { kind: 'cover' | 'background'; source: 'provider' | 'manual'; localPath: string; }
 
 export class CatalogRepository {
   private readonly db: Database.Database;
@@ -51,6 +52,40 @@ export class CatalogRepository {
       (Omit<GameRecord, 'missing' | 'providerMetadata' | 'manualOverrides'> & { missing: number; providerMetadata: string; manualOverrides: string })[];
     return rows.map(row => ({ ...row, missing: Boolean(row.missing),
       providerMetadata: JSON.parse(row.providerMetadata), manualOverrides: JSON.parse(row.manualOverrides) }));
+  }
+
+  listArtwork(gameId: number): ArtworkRecord[] {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0) throw new Error('Invalid game ID.');
+    return this.db.prepare(`SELECT kind, source, local_path AS localPath FROM artwork WHERE game_id = ? ORDER BY kind`).all(gameId) as ArtworkRecord[];
+  }
+
+  saveProviderArtwork(gameId: number, kind: 'cover' | 'background', localPath: string, remoteUrl: string): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(kind) ||
+      !/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(localPath) || !/^https:\/\//.test(remoteUrl)) throw new Error('Invalid artwork.');
+    const result = this.db.prepare(`INSERT INTO artwork (game_id, kind, source, local_path, remote_url) VALUES (?, ?, 'provider', ?, ?)
+      ON CONFLICT(game_id, kind) DO UPDATE SET source = 'provider', local_path = excluded.local_path, remote_url = excluded.remote_url
+      WHERE artwork.source = 'provider'`).run(gameId, kind, localPath, remoteUrl);
+    return result.changes === 1;
+  }
+
+  saveManualOverrides(gameId: number, overrides: Record<string, unknown>): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !validOverrides(overrides)) throw new Error('Invalid overrides.');
+    return this.db.prepare('UPDATE games SET manual_overrides = ? WHERE id = ?').run(JSON.stringify(overrides), gameId).changes === 1;
+  }
+  saveManualArtwork(gameId: number, kind: 'cover' | 'background', localPath: string): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(kind) || !/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(localPath)) throw new Error('Invalid artwork.');
+    return this.db.prepare(`INSERT INTO artwork (game_id, kind, source, local_path, remote_url) VALUES (?, ?, 'manual', ?, NULL)
+      ON CONFLICT(game_id, kind) DO UPDATE SET source = 'manual', local_path = excluded.local_path, remote_url = NULL`).run(gameId, kind, localPath).changes === 1;
+  }
+  clearManualWork(gameId: number): boolean {
+    return this.db.transaction(() => { const result = this.db.prepare("UPDATE games SET manual_overrides = '{}' WHERE id = ?").run(gameId); this.db.prepare("DELETE FROM artwork WHERE game_id = ? AND source = 'manual'").run(gameId); return result.changes === 1; })();
+  }
+  refreshBoundMatch(gameId: number, providerId: string, recordId: string, details: GameDetails): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || details.recordId !== recordId) throw new Error('Invalid match refresh.');
+    return this.db.prepare('UPDATE games SET provider_metadata = ? WHERE id = ? AND provider_id = ? AND provider_record_id = ?').run(JSON.stringify(displayMetadata({ ...details })), gameId, providerId, recordId).changes === 1;
+  }
+  deleteMissing(): number {
+    return this.db.prepare('DELETE FROM games WHERE missing = 1').run().changes + this.db.prepare('DELETE FROM collections WHERE missing = 1').run().changes;
   }
 
   reconcile(scan: ScanResult, observedAt = new Date().toISOString()): 'applied' | 'skipped' {
@@ -108,4 +143,10 @@ export class CatalogRepository {
   }
 
   close(): void { this.db.close(); }
+}
+
+function validOverrides(value: Record<string, unknown>): boolean {
+  const allowed = new Set(['title', 'description', 'releaseYear', 'developers', 'publishers', 'genres', 'rating']);
+  return value && typeof value === 'object' && Object.keys(value).every(key => allowed.has(key)) && Object.entries(value).every(([key, item]) => item === null ||
+    (['title', 'description'].includes(key) ? typeof item === 'string' && item.length <= 10_000 : key === 'releaseYear' ? Number.isInteger(item) && (item as number) > 0 && (item as number) < 10_000 : key === 'rating' ? typeof item === 'number' && Number.isFinite(item) && item >= 0 && item <= 100 : Array.isArray(item) && item.length <= 50 && item.every(name => typeof name === 'string' && name.length <= 200)));
 }

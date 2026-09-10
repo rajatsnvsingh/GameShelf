@@ -7,6 +7,13 @@ export const OPEN_INSTALL_FOLDER_CHANNEL = 'library:open-install-folder';
 export const AUTO_MATCH_CHANNEL = 'metadata:auto-match';
 export const SEARCH_MATCHES_CHANNEL = 'metadata:search';
 export const SELECT_MATCH_CHANNEL = 'metadata:select';
+export const SAVE_OVERRIDES_CHANNEL = 'catalog:save-overrides';
+export const PASTE_ARTWORK_CHANNEL = 'catalog:paste-artwork';
+export const RESCRAPE_CHANNEL = 'metadata:replace-all-rescrape';
+export const SETTINGS_CHANNEL = 'settings:get';
+export const SAVE_SETTINGS_CHANNEL = 'settings:save';
+export const DELETE_MISSING_CHANNEL = 'maintenance:delete-missing';
+export const REBUILD_CHANNEL = 'maintenance:rebuild';
 
 export interface DisplayMetadata {
   title?: string;
@@ -35,6 +42,8 @@ export interface CatalogGame {
   providerId: string | null;
   providerRecordId: string | null;
   metadata: DisplayMetadata;
+  coverUrl?: string;
+  backgroundUrl?: string;
 }
 
 export interface CatalogCollection {
@@ -56,6 +65,8 @@ export interface AppInfo {
   name: string;
   version: string;
 }
+export interface SettingsView { collectionPrefix: string; showCollectionGames: boolean; matchingThreshold: number; defaultSort: 'title' | 'releaseDate'; providerOrder: string[]; providers: Record<string, { enabled: boolean; configured: boolean }>; }
+export interface SettingsUpdate extends Omit<SettingsView, 'providers'> { providers: SettingsView['providers']; credentials?: Record<string, string>; }
 
 export interface GameShelfApi {
   getAppInfo(): Promise<AppInfo>;
@@ -67,4 +78,11 @@ export interface GameShelfApi {
   autoMatch(gameId: number): Promise<OperationResult<CatalogView>>;
   searchMatches(gameId: number, query: string): Promise<OperationResult<MatchSearch>>;
   selectMatch(gameId: number, providerId: string, recordId: string): Promise<OperationResult<CatalogView>>;
+  saveOverrides(gameId: number, overrides: DisplayMetadata): Promise<OperationResult<CatalogView>>;
+  pasteArtwork(gameId: number, kind: 'cover' | 'background'): Promise<OperationResult<CatalogView>>;
+  replaceAllRescrape(gameId: number): Promise<OperationResult<CatalogView>>;
+  getSettings(): Promise<OperationResult<SettingsView>>;
+  saveSettings(settings: SettingsUpdate): Promise<OperationResult<SettingsView>>;
+  deleteMissing(): Promise<OperationResult<CatalogView>>;
+  rebuildCatalog(): Promise<OperationResult<CatalogView>>;
 }

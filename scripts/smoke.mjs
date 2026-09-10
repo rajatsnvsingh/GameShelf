@@ -17,6 +17,8 @@ let appDirectory = join(fixture, 'Portable 日本語');
 await mkdir(appDirectory);
 await cp('out', join(appDirectory, 'out'), { recursive: true });
 await writeFile(join(appDirectory, 'package.json'), await readFile('package.json'));
+await mkdir(join(appDirectory, 'data', 'artwork'), { recursive: true });
+await writeFile(join(appDirectory, 'data', 'artwork', 'fixture.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL6LwAAAABJRU5ErkJggg==', 'base64'));
 for (const dependency of ['better-sqlite3', 'node-addon-api']) {
   await cp(join('node_modules', dependency), join(appDirectory, 'node_modules', dependency), { recursive: true });
 }
@@ -46,6 +48,17 @@ try {
       if (/^https?:/.test(request.url()) && !(env.ELECTRON_RENDERER_URL && request.url().startsWith(`${env.ELECTRON_RENDERER_URL}/`))) externalRequests.push(request.url());
     });
     await page.getByRole('heading', { name: 'GameShelf', exact: true }).waitFor();
+    const artworkLoaded = await page.evaluate(() => new Promise(resolve => {
+      const image = new Image();
+      const timeout = setTimeout(() => resolve(false), 5_000);
+      image.onload = () => { clearTimeout(timeout); resolve(true); };
+      image.onerror = () => { clearTimeout(timeout); resolve(false); };
+      image.src = 'gameshelf-artwork://local/fixture.png';
+    }));
+    assert.equal(artworkLoaded, true, 'local cached artwork should load under the renderer CSP');
+    await page.getByRole('button', { name: 'All Games', exact: true }).click();
+    await page.getByLabel('Game filters').waitFor();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByText('Version 0.1.0', { exact: true }).waitFor();
     await page.getByRole('status').filter({ hasText: 'Choose the folder' }).waitFor();
     const state = await page.evaluate(async () => ({
@@ -56,7 +69,7 @@ try {
     }));
     assert.equal(state.require, 'undefined');
     assert.equal(state.process, 'undefined');
-    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'searchMatches', 'selectMatch']);
+    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'searchMatches', 'selectMatch', 'saveOverrides', 'pasteArtwork', 'replaceAllRescrape', 'getSettings', 'saveSettings', 'deleteMissing', 'rebuildCatalog']);
     assert.deepEqual(state.info, { name: 'GameShelf', version: '0.1.0' });
     const preferences = await application.evaluate(async ({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];

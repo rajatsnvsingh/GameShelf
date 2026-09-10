@@ -174,7 +174,7 @@ test('actual adapter failure falls through to TheGamesDB and persists usable loc
 test('reversed order, duplicate/unknown IDs and misconfigured first provider are independent', async t => {
   const f = await libraryFixture(t);
   await writeFile(join(f.base, 'config.ini'), f.ini.replace('igdb,thegamesdb', 'thegamesdb,igdb,thegamesdb,unknown'));
-  assert.deepEqual((await configuredProviders(f.config)).providers.map(entry => entry.provider.id), ['thegamesdb', 'igdb']);
+  assert.deepEqual((await configuredProviders(f.config)).providers.map(entry => entry.provider.id), ['thegamesdb', 'igdb', 'steamgriddb']);
   assert.equal(value(await f.service.scan()).games[0].providerId, 'thegamesdb');
   assert.ok(!f.calls.includes('id.twitch.tv'));
   await writeFile(join(f.base, 'config.ini'), f.ini.replace('enabled="true"', 'enabled="invalid"'));
@@ -185,5 +185,5 @@ test('reversed order, duplicate/unknown IDs and misconfigured first provider are
   const load = providerSession(f.config);
   assert.equal((await load()).providers[1].provider, (await load()).providers[1].provider);
   await writeFile(join(f.base, 'config.ini'), f.ini.replace('igdb,thegamesdb', 'thegamesdb'));
-  assert.deepEqual((await load()).providers.map(entry => entry.provider.id), ['thegamesdb']);
+  assert.deepEqual((await load()).providers.map(entry => entry.provider.id), ['thegamesdb', 'steamgriddb']);
 });

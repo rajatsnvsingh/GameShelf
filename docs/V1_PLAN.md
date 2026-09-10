@@ -116,6 +116,26 @@ TheGamesDB and configured provider priority are implemented. Phases 10–16 have
 - `npm run test:thegamesdb:live` without `--run` correctly skipped. The optional credentialed TheGamesDB check has not run yet; live API compatibility remains unverified until configured. IGDB's earlier live check had passed.
 - No dependencies, schema changes, new IPC, or artwork features were added. Development GUI smoke was not repeated because renderer/preload code is unchanged and production integration checks passed.
 
+## Phase 10 verification (2026-09-09)
+
+Artwork cache and SteamGridDB support are implemented. `npm test` passed 115 tests, `npm run typecheck` and the production `npm run build` passed, and `npm run test:smoke` passed. Tests cover local opaque cache names, image validation, interrupted downloads, protected manual rows, SteamGridDB artwork-only configuration, migrations, and local-only artwork DTOs. SteamGridDB live compatibility remains unverified until a key is explicitly configured.
+
+## Phase 11 verification (2026-09-09)
+
+Manual metadata overrides, clipboard-pasted PNG cover/background artwork, and explicit replace-all rescrape are implemented. `npm test` passed 117 tests, `npm run typecheck` passed, and production `npm run test:smoke` passed. Focused tests verify field-level override precedence and restart persistence, manual PNG preservation, invalid clipboard-image rejection, failure-safe rescrape, and successful replacement of manual work. The rescrape fetches the bound provider record before clearing manual data, so failures preserve it.
+
+## Phase 12 verification (2026-09-09)
+
+Home, All Games, Collections, details, Needs Matching, title/year/collection filters, and title/release sorting are implemented with transient renderer state. `npm test` and `npm run typecheck` passed.
+
+## Phase 13 verification (2026-09-09)
+
+Settings persist collection options, matching threshold, sorting default, provider order/enabled flags, and replacement credentials through redacted IPC. `npm test` and `npm run typecheck` passed. Phase 14 maintenance is intentionally not started.
+
+## Phase 14 verification (2026-09-09)
+
+Catalog-only maintenance adds explicit missing-record deletion and a confirmed rebuild. Rebuild performs a complete validated scan before replacing the database, keeps a recoverable sibling backup until the new catalog reconciles, and restores the backup on failure. It does not access installer contents or alter `config.ini`. `npm test` passed 119 tests and `npm run typecheck` passed; added coverage includes Phase 12 navigation/filter availability, Phase 13 settings persistence/redaction, and Phase 14 removal/rebuild recovery.
+
 ## Product completion criteria
 
 A portable Windows build catalogs the specified folder grammar, survives relocation and restart, browses offline, protects manual work, and opens the correct folder. IGDB and TheGamesDB metadata, supplemental SteamGridDB artwork, manual matching, cached/custom artwork, settings, and explicit maintenance flows work. Other providers are deferred. All applicable checks pass or limitations are clearly recorded. No out-of-scope manager/launcher behavior is included.

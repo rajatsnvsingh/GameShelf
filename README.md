@@ -34,7 +34,7 @@ No telemetry, analytics, automatic updates, or network traffic except requests n
 
 ## Project status and development
 
-Phases 1–9 are implemented. Select a library, scan manually, browse games and collections, match metadata through IGDB and TheGamesDB in configured order, and use **Open Install Folder**. SQLite preserves the catalog and matches across restarts and relocation. Artwork, expanded browsing controls, and portable distribution remain later milestones.
+Phases 1–13 are implemented. Select a library, scan manually, browse games and collections, filter/sort locally, match metadata, and use **Open Install Folder**. Artwork and manual work remain local and offline; settings persist durable catalog preferences and redacted provider status. Maintenance/rebuild and portable distribution remain later milestones.
 
 Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
 
@@ -105,6 +105,23 @@ IGDB uses Twitch client credentials; the adapter requests an app access token an
 Run `npm run test:igdb:live -- --run` when ready. It searches for Portal, fetches its details, and prints a safe pass/fail message. It does not scan your library, write matches, or download artwork. Missing/disabled configuration skips the check. Automated tests always use fake responses. IGDB is disabled unless explicitly enabled and listed in providerOrder.
 
 The adapter allows one operation at a time, spaces request starts by at least 300 ms, and applies a 10-second timeout and 2 MiB response limit. It retries an unauthorized API request once with a new token, honors rate-limit cooldowns, and reports other errors for an explicit retry. Searches that fill the 50-result limit are treated as too broad rather than trusting an incomplete candidate set. Release year is normalized; a precise release day is omitted until date precision is established.
+
+## Artwork and SteamGridDB (Phase 10)
+
+Artwork is fetched only while an explicit matching operation succeeds; it never runs at startup or from the renderer. Covers/backgrounds are stored under `data/artwork` with opaque relative names and rendered through a local application URL. Existing cached files remain usable offline; unavailable artwork uses an in-app placeholder. Downloads are bounded, image-signature checked, and atomically replaced. Failed downloads leave usable cache entries intact.
+
+To enable supplemental SteamGridDB artwork, add it to the existing order and configure its ignored section:
+
+```ini
+[metadata]
+providerOrder="igdb,thegamesdb,steamgriddb"
+
+[provider.steamgriddb]
+enabled="true"
+apiKey="YOUR_STEAMGRIDDB_API_KEY"
+```
+
+SteamGridDB never supplies or replaces descriptive metadata bindings. Cached provider artwork never replaces a manual artwork row reserved for Phase 11.
 
 ## TheGamesDB and provider priority (Phase 9)
 
