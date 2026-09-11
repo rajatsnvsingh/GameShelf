@@ -1,0 +1,20 @@
+appId: com.rajatsnvsingh.gameshelf
+productName: GameShelf
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - node_modules/better-sqlite3/prebuilds/*.node
+win:
+  # This project has no Authenticode certificate. Avoid the signing helper so
+  # unsigned portable builds also work on Windows hosts without symlink rights.
+  signAndEditExecutable: false
+  target:
+    - target: portable
+      arch:
+        - x64
+  icon: src/renderer/public/app-icon.png
+portable:
+  artifactName: GameShelf-${version}-portable.exe

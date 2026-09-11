@@ -22,6 +22,7 @@ Initial dependency and Electron runtime downloads require network access. Render
 | `npm run format:check`                  | Verify that the repository follows the Prettier formatting rules without modifying files.                                        |
 | `npm test`                              | Run domain, configuration, scanner, database, provider, artwork, filesystem-fixture, and IPC tests.                              |
 | `npm run build`                         | Compile into `out/`. Does not package an executable.                                                                             |
+| `npm run package:portable`              | Build the Windows x64 no-install EXE in `release/`. See [portable release](RELEASE.md) for the required verification.            |
 | `npm start`                             | Preview the compiled app after a build.                                                                                          |
 | `npm run test:smoke`                    | Build and exercise the UI in real Electron. Requires an interactive Windows desktop.                                             |
 | `npm run test:smoke:dev`                | Run the Electron workflow against a test-owned loopback Vite server.                                                             |
@@ -62,14 +63,14 @@ INI supports named sections, scalar `key=value` entries, blank lines, and full-l
 
 The current default order is `igdb,thegamesdb,steamgriddb`, with all providers disabled. A provider must be enabled, configured, and included in the order. Existing order values, including an empty order, are preserved. Unknown IDs are skipped and duplicates run once. Blank credential replacements from Settings preserve stored secrets; ordinary queries expose configured/enabled status only.
 
-Development and compiled preview use the checkout as the portable base, independently of the shell working directory. Durable files are `config.ini`, `data/library.db`, and `data/artwork/`. Same-drive roots persist relative to the base, including sibling paths such as `../Games`. Development-only cross-drive roots are absolute and non-portable. Packaged mode requires `PORTABLE_EXECUTABLE_DIR`; the launcher and packaging remain unverified.
+Development and compiled preview use the checkout as the portable base, independently of the shell working directory. Durable files are `config.ini`, `data/library.db`, and `data/artwork/`. Same-drive roots persist relative to the base, including sibling paths such as `../Games`. Development-only cross-drive roots are absolute and non-portable. The portable launcher supplies `PORTABLE_EXECUTABLE_DIR`; its clean-machine verification remains required before publishing.
 
 Roots containing the app or overlapping its data are rejected, including resolved junction targets. Changing the selected root preserves the existing catalog and requires an explicit rebuild to replace it. A normal scan must never reconcile one library against another.
 
 ## Known limitations
 
 - **Windows shell action:** the UI's **Install** button calls `openInstallFolder`. `resolveInstallFolder` returns folder/ISO-parent paths but returns ZIP/RAR/EXE files directly; these reach `shell.openPath`, so EXEs may execute. This violates the intended folder-only product boundary. **Open Container Folder** resolves file entries to their parent. This documentation pass records the discrepancy without changing application behavior.
-- **Delivery:** milestones 1–14 comprise the implemented MVP. There is no packaging script or electron-builder dependency yet. Clean-machine deployment, portable native dependency bundling, manual upgrades, and actual removable-drive reassignment remain Phase 15 work.
+- **Delivery:** milestones 1–14 comprise the implemented MVP. `npm run package:portable` creates the Windows x64 portable EXE and unpacks `better-sqlite3`'s native binary. Clean-machine deployment, manual upgrades, and actual removable-drive reassignment remain Phase 15 verification work; follow [the release procedure](RELEASE.md) before publishing.
 - **Hardening:** actual unplugged/read-only drive faults, power-loss durability, and full end-to-end hardening remain Phase 16 work. Path fixtures and temporary-folder relocation are narrower evidence.
 - **Smoke maintenance:** the current smoke script still expects an older preload method list and older UI labels. A failure there must be investigated; historical smoke passes do not verify the latest UI.
 - **Provider compatibility:** automated checks use fakes. IGDB has a historical live check; TheGamesDB and SteamGridDB live compatibility are not established by the milestone log. Confidence scoring is a heuristic, not an accuracy guarantee.

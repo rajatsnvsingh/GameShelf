@@ -23,7 +23,27 @@ Implement in the order below. Each milestone ends with its acceptance checks and
 
 ## Current status
 
-The MVP (milestones 1–14) is implemented. Portable packaging (15) and final hardening (16) remain pending. Verification entries below describe the checkout at the time of each milestone, including then-future work. Current limitations, including the file-opening deviation and stale smoke expectations, are tracked in [development](DEVELOPMENT.md#known-limitations).
+The MVP (milestones 1–14) is implemented. Portable packaging (15) is implemented locally but still needs its clean-machine acceptance checks; final hardening (16) remains pending. Verification entries below describe the checkout at the time of each milestone, including then-future work. Current limitations, including the file-opening deviation and stale smoke expectations, are tracked in [development](DEVELOPMENT.md#known-limitations).
+
+## Phase 15 local packaging verification (2026-09-11)
+
+- `npm run typecheck`, `npm test` (136 tests), `npm run format:check`, and
+  `npm run test:database:smoke` passed before packaging.
+- `npm run package:portable` built
+  `release/GameShelf-0.1.0-portable.exe` for Windows x64 with Electron 44.3.0
+  and electron-builder 26.6.0. The packaged build rebuilt `better-sqlite3` for
+  Electron and placed its native `.node` binaries in `app.asar.unpacked`.
+- The portable EXE launched locally through its portable wrapper, which supplied
+  `PORTABLE_EXECUTABLE_DIR`; the spawned GameShelf processes were observed and
+  then closed. This is a launch smoke check, not a substitute for a clean
+  environment.
+- The binary is unsigned because no Authenticode certificate is configured.
+  The builder disables executable signing/editing so an unsigned build can be
+  made on this Windows host without developer-mode symlink privileges.
+- Still required before publication: run the clean-machine, relocation,
+  persistence, single-instance, offline-browsing, and manual-upgrade checks in
+  [the release procedure](RELEASE.md). No public release should claim these
+  checks have passed yet.
 
 ## Phase 1 verification (2026-09-09)
 

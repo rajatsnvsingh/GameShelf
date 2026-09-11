@@ -37,7 +37,7 @@ The screens below show GameShelf browsing a real library.
 
 ## Try the MVP
 
-**Status: MVP implemented; portable distribution and final hardening pending.** This checkout runs from source on Windows. It does not yet include a packaging command or a verified standalone executable.
+**Status: MVP implemented; portable packaging is available, while clean-machine verification and final hardening remain pending.** This checkout runs from source on Windows. Build the Windows x64 portable EXE with the documented [release procedure](docs/RELEASE.md).
 
 With Node.js 22.12 or newer installed, open a terminal in the downloaded or cloned project folder:
 

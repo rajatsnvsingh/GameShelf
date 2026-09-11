@@ -20,6 +20,7 @@
     "test:igdb:live": "node --experimental-strip-types scripts/igdb-live.ts",
     "test:thegamesdb:live": "node --experimental-strip-types scripts/thegamesdb-live.ts",
     "build": "electron-vite build",
+    "package:portable": "npm run build && electron-builder --win portable --x64",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown"
   },
@@ -28,6 +29,7 @@
     "@types/better-sqlite3": "9.6.0",
     "@types/node": "24.13.3",
     "electron": "44.3.0",
+    "electron-builder": "^26.6.0",
     "electron-vite": "5.0.0",
     "playwright": "1.63.0",
     "prettier": "^3.8.3",
