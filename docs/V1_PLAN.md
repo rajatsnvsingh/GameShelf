@@ -1,6 +1,6 @@
 # GameShelf v1 implementation plan
 
-Implement in the order below. Each milestone ends with its acceptance checks and a concise report; proceeding to the next milestone requires a new implementation task. The full product scope is in [README](../README.md); technical contracts are in [ARCHITECTURE](ARCHITECTURE.md).
+Implement in the order below. Each milestone ends with its acceptance checks and a concise report; proceeding to the next milestone requires a new implementation task. The project overview is in [README](../README.md); settled scope is in [DECISIONS](DECISIONS.md), technical contracts are in [ARCHITECTURE](ARCHITECTURE.md), and setup and use are in the [user guide](USER_GUIDE.md).
 
 | # | Milestone | Deliverable and acceptance checks |
 | --- | --- | --- |
@@ -20,6 +20,10 @@ Implement in the order below. Each milestone ends with its acceptance checks and
 | 14 | Maintenance/rebuild | Add explicit catalog-record deletion for missing entries and a separately confirmed database rebuild. Explain loss of matches/overrides before rebuild; preserve installer folders and INI. Test cancel/confirm, unavailable-root refusal, and recovery on failure. Rebuild is never ordinary refresh. |
 | 15 | Portable packaging | Package Windows x64 with bundled runtime and SQLite native dependency. Verify on a clean Windows environment without installation/admin rights; test drive-letter relocation, upgrades retaining data, single instance, and offline cached browsing. Document manual update procedure. |
 | 16 | Hardening | Verify migration failure handling, read-only/unplugged drive behavior, incomplete scans, IPC/path validation, provider outages, secret redaction, and absence of unintended network traffic. Run an end-to-end representative library workflow and document remaining limitations. |
+
+## Current status
+
+The MVP (milestones 1–14) is implemented. Portable packaging (15) and final hardening (16) remain pending. Verification entries below describe the checkout at the time of each milestone, including then-future work. Current limitations, including the file-opening deviation and stale smoke expectations, are tracked in [development](DEVELOPMENT.md#known-limitations).
 
 ## Phase 1 verification (2026-09-09)
 
@@ -135,6 +139,12 @@ Settings persist collection options, matching threshold, sorting default, provid
 ## Phase 14 verification (2026-09-09)
 
 Catalog-only maintenance adds explicit missing-record deletion and a confirmed rebuild. Rebuild performs a complete validated scan before replacing the database, keeps a recoverable sibling backup until the new catalog reconciles, and restores the backup on failure. It does not access installer contents or alter `config.ini`. `npm test` passed 119 tests and `npm run typecheck` passed; added coverage includes Phase 12 navigation/filter availability, Phase 13 settings persistence/redaction, and Phase 14 removal/rebuild recovery.
+
+## Documentation showcase pass (2026-09-10)
+
+Reworked the README around the MVP, added a nontechnical setup/use guide and a separate development reference, and added a local SVG banner, two Mermaid architecture diagrams, contributor guidance, and GitHub issue/PR templates. Updated current scanner documentation and distinguished historical milestone notes from present status. Recorded the existing file-opening boundary deviation without changing runtime behavior.
+
+Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed. Local documentation links, anchors, code-fence balance, documented npm script names, and SVG XML were checked. The banner was rendered for visual inspection. Electron GUI smoke and live-provider checks were not run for this documentation-only pass; current smoke expectations need updating separately. Mermaid blocks were reviewed as source; GitHub rendering and remote repository settings were not verified or changed.
 
 ## Product completion criteria
 

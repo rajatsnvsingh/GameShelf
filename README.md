@@ -1,144 +1,111 @@
+<div align="center">
+
+![GameShelf — Your collection, on display](docs/assets/banner.svg)
+
 # GameShelf
 
-GameShelf is a Windows-only portable catalog for game installer folders and supported archives on an external drive. Browse a local library, optionally enrich it with metadata and artwork, and use **Open Install Location** in Windows Explorer.
+**Turn a drive full of game folders into a library worth browsing.**
 
-## Scope
+A Windows desktop catalog with cover art, collections, and offline browsing.
+Vibe coded with a small scope and a visible trail of decisions and tests.
 
-- One user-selected library root. Ask for a root when none is configured or the configured location is unavailable; never assume a directory.
-- Immediate folders are games, except folders beginning with `_`, which are excluded. Immediate folders prefixed `[C]` are collections; their immediate child supported files (`.zip`, `.rar`, `.iso`, `.exe`) are games. Supported files directly under the root are also games. Do not scan deeper or inspect game-folder contents.
-- Manual scans reconcile discoveries, add new entries, and mark absent entries missing. Never automatically delete catalog entries or modify game folders.
-- Metadata is optional. Selected providers are IGDB, then TheGamesDB, then SteamGridDB (supplemental artwork only); other providers are deferred. Enabled providers run in configurable priority order within their capabilities; normalized exact-title matches use the provider’s first result, while approximate matches require high confidence. Settings can optionally enable **Greedy match**, which accepts the first provider-ranked candidate regardless of confidence.
-- Manual metadata and artwork overrides survive scans and normal refreshes. Only an explicit replace-all rescrape may replace them.
-- Cache covers and backgrounds locally; support custom artwork pasted from the clipboard. Browsing works offline, including without any configured provider.
+[User guide](docs/USER_GUIDE.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/V1_PLAN.md)
 
-## Experience
+</div>
 
-Use Playnite as visual direction for a windowed, mouse-and-keyboard interface:
+## A shelf for the games you keep
 
-- **Home:** collections, games discovered after the initial scan, and a locally selectable grouping by release decade or genre. The initial scan and a rebuild intentionally have no recently added games.
-- **All Games:** search by title, filter by release year or collection, sort alphabetically or by release date.
-- **Collections:** collection cards and individual collection pages. A setting controls whether collection games appear in the main library; they remain searchable regardless.
-- **Game details:** cover, background, and available metadata such as description, release date, developer, publisher, genres, ratings, and reviews. Omit unavailable fields and sections.
-- **Needs Matching:** unresolved games, candidate selection, and manual search.
-- **Settings:** durable configuration and maintenance actions.
+GameShelf gives your local game collection a visual home. Choose a folder, scan it when you want, and browse covers, descriptions, and collections in a dark, Playnite-inspired interface. Metadata providers are optional; the local catalog works without them.
 
-The sole game filesystem actions are **Open Install Location** and, for a cataloged archive/image file, **Open Container Folder**. They open only the validated stored folder/file or its containing folder in Explorer; catalog editing and maintenance do not operate on installer files.
+- **Browse your way.** Home groups games by release decade or genre. Search and filter by title, year, genre, or collection.
+- **Keep collections together.** Folders such as `[C] Favorites` become browsable collections.
+- **Fill in the details.** Match titles through IGDB or TheGamesDB; add supplemental covers and backgrounds from SteamGridDB.
+- **Make it yours.** Correct titles and descriptions, choose a match, or paste your own artwork. Normal scans preserve that work.
+- **Take it offline.** Saved metadata and cached artwork stay local. Scans are manual, and missing entries stay in the catalog until you remove them.
 
-## Stack and distribution
+The product is a catalog for roughly 50–100 games, with one library root. Game launching, installation, extraction, playtime tracking, cloud sync, telemetry, and automatic updates are outside its intended scope.
 
-Electron, Svelte 5, TypeScript, Vite, embedded SQLite, and INI configuration. `better-sqlite3` is the preferred driver, subject to packaged Electron compatibility checks. Target Windows x64 with a portable build; electron-builder is the planned packaging tool.
+## Try the MVP
 
-No installer, administrator requirement, database server, or background service. Run one app instance. Updates are manual. All durable configuration, database, artwork, and any logs stay with the portable library; temporary Electron/Chromium files on the host are acceptable. Persist relative paths so changing drive letters does not break the catalog.
+**Status: MVP implemented; portable distribution and final hardening pending.** This checkout runs from source on Windows. It does not yet include a packaging command or a verified standalone executable.
 
-No telemetry, analytics, automatic updates, or network traffic except requests needed by explicitly enabled metadata/artwork providers. No launching or installing games, installer inspection, extraction, ISO mounting, game downloads, installed-state tracking, playtime, save management, emulators, cloud sync, remote access, or multi-user features.
-
-## Project status and development
-
-Phases 1–14 are implemented. Select a library, scan manually, browse games and collections, filter/sort locally, match metadata, and use **Open Install Location**. Artwork and manual work remain local and offline; settings persist durable catalog preferences and redacted provider status. Portable distribution remains a later milestone.
-
-Use Node.js 22.12 or newer (verified with Node 24.14.1 and npm 11.11.0 on Windows). npm is the package manager; keep `package-lock.json` with dependency changes. Initial setup requires network access to download packages and the Electron runtime.
+With Node.js 22.12 or newer installed, open a terminal in the downloaded or cloned project folder:
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-Close the app window to end development. Renderer edits update through Vite; restart the command after main/preload edits, or use `npm run dev -- --watch`.
+Choose **Choose library folder**, then **Scan library**. No provider account is needed to start browsing. The [user guide](docs/USER_GUIDE.md) walks through setup, collections, artwork, and everyday use.
 
-| Command | Purpose |
+> **Current MVP limitation:** the details button is labeled **Install**. For file entries, use **Open Container Folder** to browse safely in Explorer. Install can open ZIP/RAR files through Windows associations and can execute an EXE; this conflicts with the intended folder-only behavior and remains a [known issue](docs/DEVELOPMENT.md#known-limitations).
+
+## Built through vibe coding
+
+GameShelf is a vibe-coded project with explicit product boundaries: a focused desktop catalog, local storage, and optional enrichment. The repository keeps the reasoning alongside the implementation so you can explore how the project took shape.
+
+The [decision ledger](docs/DECISIONS.md) records the tradeoffs. The [milestone log](docs/V1_PLAN.md) records what was implemented and which checks ran. [AGENTS.md](AGENTS.md) defines the guardrails for future work. Contributions should keep that same small, reviewable scope.
+
+## Software architecture
+
+Electron hosts a Svelte 5 interface. TypeScript contracts connect the interface to privileged services; SQLite stores the catalog, INI stores settings, and artwork lives in local files.
+
+```mermaid
+flowchart TB
+    UI["Svelte renderer · views and transient state"]
+    Bridge["Typed preload bridge"]
+    IPC["Validated IPC · Electron main"]
+    Library["Library service · scan orchestration"]
+    Scanner["Pure shallow scanner"]
+    DB[("SQLite catalog")]
+    Config["INI settings and credentials"]
+    Metadata["Metadata resolver and provider adapters"]
+    Art["Local artwork cache and clipboard processing"]
+    Providers["Enabled IGDB / TheGamesDB / SteamGridDB"]
+    Shell["Validated location service · Windows shell"]
+    UI <--> Bridge
+    Bridge <--> IPC
+    IPC --> Library
+    IPC --> Config
+    Library --> Scanner
+    Library --> DB
+    Library --> Metadata
+    Config --> Metadata
+    Metadata --> Providers
+    Library --> Art
+    Art --> Providers
+    Art -. local artwork URLs .-> UI
+    Library --> Shell
+```
+
+The renderer has no direct filesystem, database, credential, or provider access. Main validates requests and resolves stored game IDs. Network requests belong to enabled providers; artwork is served back from the local cache. The Windows shell action has the MVP limitation noted above.
+
+```mermaid
+flowchart LR
+    Click["User selects Scan library"] --> Scan["List root and immediate collection entries"]
+    Scan --> Complete{"Complete scan?"}
+    Complete -- No --> Keep["Report failure; preserve catalog"]
+    Complete -- Yes --> Save["Reconcile in one transaction"]
+    Save --> Presence["Add discoveries; mark missing; preserve manual work"]
+    Presence --> Match["Try enabled providers for unresolved games"]
+    Match --> Result{"Match available?"}
+    Result -- Yes --> Cache["Save metadata; cache available artwork"]
+    Result -- No --> Unresolved["Keep local entry in Needs Matching"]
+    Cache --> Browse["Browse saved catalog offline"]
+    Unresolved --> Browse
+```
+
+Discovery and enrichment are separate: provider failure cannot undo a completed local scan. See [architecture](docs/ARCHITECTURE.md) for storage, path, matching, and maintenance contracts.
+
+## Explore the project
+
+| Start here | What you will find |
 | --- | --- |
-| `npm run typecheck` | Check main/preload/shared TypeScript and Svelte renderer types. |
-| `npm test` | Run scanner, SQLite/reconciliation, configuration, path, filesystem-fixture, and IPC validation tests using Node's built-in test runner. |
-| `npm run build` | Compile main, preload, and renderer into `out/`; does not package a portable executable. |
-| `npm start` | Open the compiled app after a build. |
-| `npm run test:smoke` | Build and launch real Electron; verify isolation, folder selection, INI persistence, relocation, unavailable folders, and single-instance behavior. |
-| `npm run test:smoke:dev` | Run the same checks against a test-owned loopback Vite server on an available port. |
-| `npm run test:database:smoke` | Build and exercise the compiled SQLite repository in Electron with a temporary database. |
-| `npm run test:igdb:live -- --run` | Optional IGDB authentication/search/detail check using local INI credentials; no catalog writes. Without `--run`, skips without networking. |
-| `npm run test:thegamesdb:live -- --run` | Optional TheGamesDB key/search/detail check, including company/genre name lookups; no catalog writes. Without `--run`, skips without networking. |
+| [User guide](docs/USER_GUIDE.md) | Setup, browsing, matching, artwork, backups, and troubleshooting |
+| [Development](docs/DEVELOPMENT.md) | Commands, verification, source layout, and known limitations |
+| [Architecture](docs/ARCHITECTURE.md) | Process boundaries and domain contracts |
+| [Decisions](docs/DECISIONS.md) | Scope and implementation choices |
+| [Roadmap and verification](docs/V1_PLAN.md) | Completed MVP milestones and remaining delivery work |
+| [Contributing](CONTRIBUTING.md) | Reporting bugs and making focused changes |
 
-The smoke tests use temporary portable folders and an isolated Chromium profile, supply fake picker and IGDB HTTP responses, capture Explorer target paths without opening Explorer, and close their windows. Ignored screenshots are saved at `test-results/catalog.png` and `test-results/matching.png`. Checks cover matching, provider failure, scanning, browsing, missing/reappearing folders, restart, relocation, and unavailable roots. Tests require an interactive Windows desktop, but no separate Playwright browser download. Development uses a loopback-only Vite server; compiled app resources are local. App permissions, new windows, navigation, and nonlocal renderer requests are blocked.
-
-Verified milestone checks and limitations are recorded in [the implementation plan](docs/V1_PLAN.md).
-
-The Phase 3 scanner is in `src/main/library/scanner.ts`. It accepts a root, collection prefix, and a directory-listing function. It lists only the root and immediate collection folders, skips links and special entries, and returns either complete discoveries or a failure without partial data. Phase 5 connects a real shallow filesystem adapter and manual UI action through a main-process library service.
-
-Phase 4 adds `src/main/database`. `openCatalog(portableBase, libraryRoot)` opens `data/library.db`, migrates it, and returns a repository with list, reconcile, and close methods. Only complete validated scans change presence; failed scans are skipped. Reconciliation preserves IDs, added dates, bindings, metadata, and manual overrides. It never deletes records. The catalog stores a normalized library binding and refuses a different root, including an INI change made outside the app. Portable bindings are relative; development-only cross-drive bindings are absolute. Phase 5 opens existing catalogs after the single-instance lock and creates a new catalog only after a successful manual scan.
-
-`better-sqlite3` 13.0.3 is a runtime dependency; its shipped Windows x64 native binary was verified in Node 24.14.1 and Electron 44.3.0. No rebuild command is needed for these tested versions. Keep the lockfile and use `npm ci`; rerun `npm run test:database:smoke` after Electron or SQLite upgrades. Packaging must still include the native dependency, and packaged verification remains Phase 15.
-
-## Library setup
-
-Run `npm run dev`, then select **Choose library folder**. Development permits a local library on another drive, storing its drive-qualified path in `config.ini`; that binding is intentionally non-portable and a packaged build will reject it. For portable use, select a folder on the same drive as the app, such as a `Games` subfolder or sibling folder. Selection checks the folder itself but does not enumerate its contents or scan. Cancel leaves configuration unchanged. Use **Retry** after reconnecting an unavailable drive or correcting configuration.
-
-Select **Scan library** to update the catalog, then select a collection or game to view its details. **Open Install Location** resolves the stored game ID in main. It opens game folders and ISO parent folders in Explorer; ZIP/RAR archives are opened directly. Missing, inaccessible, or linked game paths return an error. Missing records remain visible; an unavailable library does not prevent browsing an existing catalog. Startup, Retry, and root selection never scan automatically.
-
-During development and compiled preview, the checkout is the portable base, regardless of the shell's working directory. `config.ini` is created there only after a valid selection. A packaged build will use electron-builder's `PORTABLE_EXECUTABLE_DIR`; it refuses to guess a base if that value is unavailable. Packaged validation remains Phase 15.
-
-The INI stores the library root relative to the portable base, including `../Games` for a sibling on the same drive. In development only, a local cross-drive root is stored as a drive-qualified path and is not relocatable. Move the app and library together, preserving their relative layout for portable use. Roots containing the app or overlapping `data/` are rejected, including resolved junction targets. Changing to another library preserves the old catalog until you explicitly select **Settings > Rebuild catalog**, which replaces its records, matches, overrides, and artwork associations using the selected library. **Settings > Wipe library** permanently deletes catalog data, cached artwork, and logs while preserving configuration, provider credentials, game folders, and archives.
-
-[config.example.ini](config.example.ini) shows defaults. The small INI format supports named sections, scalar `key=value` entries, blank lines, and full-line `;` or `#` comments. The app writes JSON-quoted string values; forward slashes are easiest for paths. Duplicate sections/keys, malformed lines, unsupported versions, and invalid known settings produce an error without overwriting the original file. Saves preserve unknown scalar settings but normalize formatting and remove comments. Do not edit the file while a folder picker is open.
-
-`src/main/metadata` defines normalized provider contracts, a resolver, and the IGDB adapter. Phase 8 connects their results to SQLite and the matching interface. Credentials stay in main-process configuration; ordinary renderer queries never receive them. Collection visibility and expanded sorting remain later work.
-
-## Matching metadata (Phase 8)
-
-With metadata providers configured, **Scan library** saves discoveries first, then attempts automatic matching for every unresolved game. Supported archive filenames use their basename for lookup and display (`Tekken 3.iso` appears and searches as `Tekken 3`), while the stored relative path retains the actual filename. The sidebar reports scanning/matching progress, including the current folder, attempts, and matches. Enabled/configured providers are tried in INI order. A normalized exact title selects the provider’s first exact result; approximate matches require a confident, unique result. When **Greedy match** is enabled in Settings, the first candidate ranked by the first provider with a result is accepted instead, including low-confidence or ambiguous results. Empty and failed attempts still fall back. A provider failure leaves that game unresolved but does not stop attempts for later games. Existing matches are never implicitly rematched by scanning.
-
-For games already in your catalog, open **Needs Matching**, select a game, and choose **Match automatically**. If needed, edit **Search title**, select one enabled metadata provider, choose **Search candidates**, then **Use this match** beside the candidate's title, release year, provider, record ID, and any artwork availability reported by that provider. Searching alone changes nothing, and an empty search explicitly reports no results. IGDB's bounded first 50 ranked results remain selectable for broad titles. The selected record's details are fetched before its provider/record ID and metadata are saved. A matched game's **Change match** dialog identifies its current provider, record ID, binding type, and catalog folder; an explicit selection replaces that binding while a failed request keeps the old match. **Clear all metadata** removes provider/manual metadata and provider artwork associations, returns the game to Needs Matching, and preserves custom pasted artwork.
-
-Titles, descriptions, release years, companies, genres, and ratings appear when available and remain readable offline. Manual bindings and overrides survive scans and restarts. Artwork is not downloaded or displayed yet. Provider work runs sequentially; wait for the current operation before scanning or matching again. Startup and Retry never trigger metadata requests.
-
-## IGDB setup (Phase 7)
-
-Close GameShelf before editing the local `config.ini` beside the app (in development, the repository root). In the existing `[metadata]` section, set `providerOrder="igdb"`. Add the section below, using your Twitch application's Client ID and Client Secret. Do not duplicate existing sections or put credentials in the tracked `config.example.ini`.
-
-```ini
-[provider.igdb]
-enabled="true"
-clientId="YOUR_CLIENT_ID"
-clientSecret="YOUR_CLIENT_SECRET"
-```
-
-IGDB uses Twitch client credentials; the adapter requests an app access token and keeps it in memory only. You do not need to copy an access token into INI. See [IGDB authentication](https://api-docs.igdb.com/#authentication) and [Twitch client credentials](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow).
-
-Run `npm run test:igdb:live -- --run` when ready. It searches for Portal, fetches its details, and prints a safe pass/fail message. It does not scan your library, write matches, or download artwork. Missing/disabled configuration skips the check. Automated tests always use fake responses. IGDB is disabled unless explicitly enabled and listed in providerOrder.
-
-The adapter allows one operation at a time, spaces request starts by at least 300 ms, and applies a 10-second timeout and 2 MiB response limit. It retries an unauthorized API request once with a new token, honors rate-limit cooldowns, and reports other errors for an explicit retry. Searches that fill the 50-result limit are treated as too broad rather than trusting an incomplete candidate set. Release year is normalized; a precise release day is omitted until date precision is established.
-
-## Artwork and SteamGridDB (Phase 10)
-
-Artwork is fetched only while an explicit matching operation succeeds; it never runs at startup or from the renderer. Covers/backgrounds are stored under `data/artwork` with opaque relative names and rendered through a local application URL. Existing cached files remain usable offline; unavailable artwork uses an in-app placeholder. Downloads are bounded, image-signature checked, and atomically replaced. Failed downloads leave usable cache entries intact.
-
-To enable supplemental SteamGridDB artwork, add it to the existing order and configure its ignored section:
-
-```ini
-[metadata]
-providerOrder="igdb,thegamesdb,steamgriddb"
-
-[provider.steamgriddb]
-enabled="true"
-apiKey="YOUR_STEAMGRIDDB_API_KEY"
-```
-
-SteamGridDB never supplies or replaces descriptive metadata bindings. After a game has a metadata match, use **Edit > Fetch artwork** to stage cover/background art from the matched provider and SteamGridDB. Entering a SteamGridDB game ID is optional and avoids title-search ambiguity; leaving it blank uses title lookup. GameShelf shows the current and proposed local artwork, then replaces only the confirmed items. Artwork is classified as manual only when it was pasted through **Edit metadata & artwork**; provider/API artwork is always provider artwork. Changing a metadata match refreshes provider-cached artwork while leaving pasted artwork intact.
-
-## TheGamesDB and provider priority (Phase 9)
-
-Close GameShelf, then edit your ignored local `config.ini`. Set `providerOrder="igdb,thegamesdb"` in the existing `[metadata]` section and add:
-
-```ini
-[provider.thegamesdb]
-enabled="true"
-apiKey="YOUR_THEGAMESDB_API_KEY"
-```
-
-Use your TheGamesDB API key, never the Twitch secret. Run `npm run test:thegamesdb:live -- --run` for the optional live check. It performs search/details and any required company/genre lookups using the [official API](https://api.thegamesdb.net/); no catalog or artwork is written. Its key is required in API query parameters, so request URLs are never logged or returned to the UI.
-
-The default order for new configurations is IGDB then TheGamesDB, with both disabled until explicitly enabled. Existing INI order, including an empty order, is preserved. Reverse the list to prefer TheGamesDB, or omit/disable a provider to exclude it. Unknown IDs are ignored and duplicates run only once. An invalid enabled flag disables that provider; missing credentials skip it. In Settings, blank credential fields preserve existing secrets; enter a non-empty value only to replace one. Manual search starts with the configured default metadata provider and can target another enabled provider explicitly. Priority changes never rematch existing records or override manual selections.
-
-TheGamesDB requests use a fixed API origin, no redirects, one active operation, 300 ms spacing, 10-second deadlines, and a 2 MiB response limit. Pagination is refused as too broad rather than following URLs containing keys or accepting incomplete matches; that title is treated as an unmatched result so batch matching can continue. Company/genre IDs resolve through bounded lookups with names cached in memory. HTTP 403 may indicate a bad key or exhausted allowance; 429 and reported quota exhaustion impose a cooldown. Age classifications are not converted into review scores. Artwork remains Phase 10.
-
-Local version control uses Git. INI settings and their backups, `.env` files, databases, artwork/data, logs, dependencies, and build/test output are ignored. Only sanitized `*.example.ini` templates may be tracked; never put real API keys in those examples. Review `git diff --cached` before committing. Git ignore rules do not protect files that were already tracked or explicitly force-added.
-
-Read [AGENTS.md](AGENTS.md), [the implementation plan](docs/V1_PLAN.md), [architecture](docs/ARCHITECTURE.md), and [decisions](docs/DECISIONS.md) before implementation. Work one milestone at a time.
+Visual direction takes inspiration from Playnite. Optional metadata and artwork come from IGDB, TheGamesDB, and SteamGridDB; GameShelf is an independent project.

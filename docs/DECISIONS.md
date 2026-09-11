@@ -1,18 +1,18 @@
 # GameShelf decisions
 
-This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines behavior; [the plan](V1_PLAN.md) defines implementation order. Update these together when requirements change.
+This is the concise decision ledger. Phase-specific sections preserve historical implementation choices; current setup and status are in the [user guide](USER_GUIDE.md) and [development guide](DEVELOPMENT.md). [Architecture](ARCHITECTURE.md) defines behavior; [the plan](V1_PLAN.md) defines implementation order. Update these together when requirements change.
 
 ## Settled for v1
 
 | Area | Decision |
 | --- | --- |
-| Product | Local installer-folder/archive catalog named GameShelf. Only game filesystem action: **Open Install Location**. |
+| Product | Local installer-folder/archive catalog named GameShelf. Intended game filesystem action: open a location in Explorer. Current Install behavior for files is a documented deviation; see architecture. |
 | Platform | Windows-only portable desktop app, targeting x64; no installation/admin requirement or background service. |
 | Stack | Electron + Svelte 5 + TypeScript + Vite, embedded SQLite, INI configuration. Earlier React/browser-mode ideas are superseded. |
 | Storage | Durable config, database, cached/custom artwork, and any logs stay with the portable library. Temporary host Electron files are acceptable. |
 | Paths | Root relative to portable base; game/collection paths relative to root; artwork paths relative to cache. Preserve collection segments. No fixed drive letters. |
-| Discovery | One user-selected root. Immediate directories are games except `_`-prefixed directories, which are excluded. `[C]` directories are collections whose immediate child directories are games. Immediate `.zip`, `.rar`, and `.iso` files at either scanned level are games. No deeper scan or archive inspection. |
-| Names | Literal folder names display as-is; supported archive names display without their `.zip`, `.rar`, or `.iso` suffix while stored relative paths retain the real filename. Collection display names omit the prefix. No edition parsing or rename inference. |
+| Discovery | One user-selected root. Immediate directories are games except `_`-prefixed directories, which are excluded. `[C]` directories are collections whose immediate child directories are games. Immediate `.zip`, `.rar`, `.iso`, and `.exe` files at either scanned level are games. No deeper scan or archive inspection. |
+| Names | Literal folder names display as-is; supported archive names display without their `.zip`, `.rar`, `.iso`, or `.exe` suffix while stored relative paths retain the real filename. Collection display names omit the prefix. No edition parsing or rename inference. |
 | Collections | Separate collection views; configurable inclusion of members in main library. Members always remain searchable. Prefix defaults to `[C]` and is an INI setting. |
 | Scans | Manual only. Add new, mark missing, never auto-delete. Failed/incomplete scans do not change presence state. |
 | Identity | Relative path initially identifies a game. Rename/move may become an old missing entry and a new entry. |
@@ -20,7 +20,7 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 | Manual work | Stored manual matches override provider order. Manual metadata/artwork overrides survive normal scans/refreshes; only explicit replace-all rescrape may replace them. |
 | Artwork | Covers and backgrounds first; locally cached, with clipboard-paste custom images. Manual > cached provider > placeholder. |
 | UI | Playnite-inspired, windowed, mouse/keyboard. Home (collections, recently added, release-decade or genre groups), All Games, Collections, details, Needs Matching, Settings. Recently added excludes the catalog's initial scan and rebuild baseline. |
-| Discovery UI | Title search, year/collection filters, alphabetical/release-date sorts. Omit unavailable metadata sections. |
+| Discovery UI | Title search, year/genre/collection filters, alphabetical/release-date sorts. Omit unavailable metadata sections. |
 | Settings | INI holds durable choices and plaintext API keys. Do not persist incidental UI state. |
 | Network | Only enabled metadata/artwork provider traffic; no telemetry or automatic updates. Local catalog works without providers and offline after caching. |
 | Lifetime | Single app instance; manual application updates; migrations preserve usable existing catalogs. |
@@ -78,3 +78,8 @@ Add a SQLite artwork association and opaque local cache filenames. Cache selecte
 ## Explicitly out of scope
 
 Launching/installing/updating games; inspecting or extracting installers/archives; ISO mounting; game downloads; installed-state or playtime tracking; save management; emulators; recursive discovery; automatic scans; multiple roots; cloud sync; remote access; accounts; telemetry; automatic app updates. Do not reopen these decisions without a user-requested scope change.
+
+
+## Documentation presentation (2026-09-10)
+
+The README is the project showcase, with native Mermaid architecture diagrams and a local decorative SVG banner. The user guide covers setup and use; development commands and current limitations have a separate reference. Vibe-coded provenance is stated without unverified generation statistics or release claims. Existing milestone verification entries remain historical evidence. No license, release, or remote repository setting is assigned by this documentation pass.

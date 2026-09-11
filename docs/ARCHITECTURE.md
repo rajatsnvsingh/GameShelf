@@ -1,5 +1,9 @@
 # GameShelf architecture
 
+For diagrams, see the [README](../README.md#software-architecture). For everyday setup and use, see the [user guide](USER_GUIDE.md); commands and current limitations are in [development](DEVELOPMENT.md).
+
+The contracts below describe the current design. Paragraphs explicitly labeled with a phase retain implementation history from that milestone; their references to later work are historical, not the current MVP status. Milestones 1–14 are implemented; packaging and final hardening remain pending.
+
 ## Process and module boundaries
 
 `Svelte renderer -> typed preload/contextBridge -> validated IPC -> main/core services`
@@ -59,18 +63,18 @@ Phase 2 uses a strict scalar INI reader/writer without an added dependency. Miss
 
 Input: root plus collection prefix and an injected directory-listing adapter. Output: discovered games/collections with literal folder names, relative paths, collection membership, and success/error status. The pure classification logic has no persistence, metadata, or UI side effects.
 
-1. List immediate root entries; ignore files.
-2. A directory without the prefix is a game. Never enumerate its contents.
-3. A prefixed directory is a collection, named for display by removing the prefix. List its immediate child directories as games; ignore files.
+1. List immediate root entries. Recognize supported `.zip`, `.rar`, `.iso`, and `.exe` files by name only; ignore other files and directories beginning with `_`.
+2. A remaining directory without the collection prefix is a game. Never enumerate its contents.
+3. A prefixed root directory is a collection, named for display by removing the prefix. List its immediate child directories and supported files as games, excluding `_`-prefixed directories.
 4. Stop. Even a prefixed child inside a collection is a game, not a nested collection.
 
-Do not detect executables, archives, installers, DLC, editions, or installed state. Empty game folders count; empty collections remain collections. Use game folder names literally as initial titles/search terms; elaborate cleanup and rename detection are out of scope. Do not traverse directory links outside the root or allow them to increase scan depth. Keep unusual-folder policy simple rather than inferring content semantics.
+Recognize supported file extensions without inspecting contents. Do not infer DLC, editions, or installed state. Empty game folders count; empty collections remain collections. Use game folder names literally as initial titles/search terms; elaborate cleanup and rename detection are out of scope. Do not traverse directory links outside the root or allow them to increase scan depth. Keep unusual-folder policy simple rather than inferring content semantics.
 
-`scanLibrary({ root, collectionPrefix }, listDirectory)` in `src/main/library/scanner.ts` receives the absolute root separately from a relative directory (`''` for root, otherwise a single collection folder name). It returns immediate game folders and immediate `.zip`, `.rar`, or `.iso` files at either scanned level; it excludes directories beginning with `_`, never visits game folders, and does not inspect archive contents. The adapter must return a complete immediate listing or throw, distinguish directories/files/links/other entries without following links, and preserve literal entry names. `directory-reader.ts` validates listing depth, rejects linked listing directories, and checks observed directory identity/modification times and the resolved root before reconciliation. Detected changes discard the scan.
+`scanLibrary({ root, collectionPrefix }, listDirectory)` in `src/main/library/scanner.ts` receives the absolute root separately from a relative directory (`''` for root, otherwise a single collection folder name). It returns immediate game folders and immediate `.zip`, `.rar`, `.iso`, or `.exe` files at either scanned level; it excludes directories beginning with `_`, never visits game folders, and does not inspect archive contents. The adapter must return a complete immediate listing or throw, distinguish directories/files/links/other entries without following links, and preserve literal entry names. `directory-reader.ts` validates listing depth, rejects linked listing directories, and checks observed directory identity/modification times and the resolved root before reconciliation. Detected changes discard the scan.
 
 The scanner skips links (including junctions) and special entries at both levels. Prefix matching is exact and case-sensitive. A prefix-only collection keeps an empty display name after prefix removal. Output uses forward-slash relative paths and nullable collection paths for game membership. Root entries and final results use ordinal string ordering, independent of locale or adapter order; listing arrays are not mutated. Unsafe entry names or duplicate case-insensitive sibling names fail the scan rather than producing ambiguous paths.
 
-`ScanResult` is a discriminated union: `complete` contains games/collections; `failed` contains only an error code and the relative directory where it occurred. The scanner stops on the first failure and discards all partial discoveries. Raw adapter exceptions are not exposed. A future reconciliation consumer must accept only complete results; a failed result cannot be interpreted as an empty library.
+`ScanResult` is a discriminated union: `complete` contains games/collections; `failed` contains only an error code and the relative directory where it occurred. The scanner stops on the first failure and discards all partial discoveries. Raw adapter exceptions are not exposed. Reconciliation accepts only complete results; a failed result cannot be interpreted as an empty library.
 
 ## Persistence and reconciliation
 
@@ -87,7 +91,7 @@ Use columns for title, release date/year, collection, and added date as needed f
 
 On a **successful complete manual scan**, reconcile transactionally: insert new paths, mark observed entries present, update last-seen values, and mark unobserved records missing. Preserve stable IDs, added dates, bindings, metadata, and overrides for existing paths. Reappearance clears missing. Rename/move may yield an old missing record plus a new record; do not guess identity.
 
-If the root is unavailable or any required listing fails, report the failure and do not apply presence reconciliation. Never interpret an unplugged drive or unreadable collection as an empty library. Scanning and optional enrichment are separate stages; metadata failures cannot undo a valid catalog scan. A normal scan can enrich newly discovered entries using enabled providers, but never refresh or rematch existing records implicitly.
+If the root is unavailable or any required listing fails, report the failure and do not apply presence reconciliation. Never interpret an unplugged drive or unreadable collection as an empty library. Scanning and optional enrichment are separate stages; metadata failures cannot undo a valid catalog scan. A normal scan attempts enrichment for every unresolved, unbound entry using enabled providers, including entries from earlier scans. It never refreshes or rematches existing bindings implicitly.
 
 Phase 4 implements the repository in `src/main/database` with `better-sqlite3` 13.0.3. Version 1 creates `catalog`, `collections`, and `games`; migration history is recorded in `schema_migrations`. `catalog` binds the database to the normalized root relative to the portable base, so relocation retains the binding and another relative library root is refused. Development-only cross-drive roots bind to their normalized absolute local path and are not relocatable. Connections enable foreign keys and use DELETE journaling with FULL synchronization. This keeps the durable database and its transient rollback journal beside each other in `data/`. Storage links/junctions are rejected. Opening a catalog does not enumerate a library, and an absent root does not prevent reading existing records.
 
@@ -174,3 +178,15 @@ Acquire the single-instance lock before opening the database; a second launch fo
 Phase 2 obtains Electron's [single-instance lock](https://www.electronjs.org/docs/latest/api/app#apprequestsingleinstancelockadditionaldata) before configuration initialization. A rejected launch quits; the primary process restores, shows, and focuses its window. No database is opened in this milestone.
 
 Deleting a missing entry removes catalog data only, never its installer folder. Database rebuild is a separate destructive catalog operation with explicit confirmation describing loss of matches/manual metadata and artwork associations. Validate the root first, retain a recoverable prior database until replacement succeeds, and never touch installer contents or erase INI settings. Rebuild is not a normal rescan or replace-all rescrape.
+
+## Current MVP editing and maintenance
+
+The Settings UI persists collection preferences, provider order/enabled state and credential replacements, confidence threshold, opt-in greedy matching, and default sort through validated IPC. Title/year/genre/collection filters and navigation remain transient. Home groups by release decade or genre; the first scan and rebuild establish a baseline excluded from Recently added.
+
+The manual editor exposes title and description overrides and clipboard-pasted covers/backgrounds. Display applies manual values over provider data. Explicit replace-all rescrape fetches the bound provider record before clearing manual work. Clear-all metadata removes the binding, provider/manual metadata, and provider artwork associations but preserves pasted artwork. Confirmed Fetch artwork previews may replace pasted artwork; normal provider cache writes may not.
+
+Missing-record deletion is explicit. Rebuild validates a complete scan, retains a recoverable database backup until replacement succeeds, and restores it on failure. Wipe removes catalog/cache/log state while preserving INI settings and credentials. Neither operation modifies game files.
+
+## Known deviation: opening locations
+
+The intended product boundary is to open game locations in Explorer only. The current UI instead labels `openInstallFolder` as **Install**. The path resolver returns folders and ISO parents, but returns ZIP/RAR/EXE paths directly to `shell.openPath`; an EXE may therefore execute. `openContainerFolder` resolves file entries to their parent directory. This is a known implementation deviation, not authorization to add launching or installation. See the [user guide](USER_GUIDE.md#open-a-games-folder) for the current folder-opening workaround. No application behavior was changed during the documentation pass.
