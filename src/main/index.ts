@@ -17,6 +17,7 @@ const directory = dirname(fileURLToPath(import.meta.url));
 const rendererFile = join(directory, '../renderer/index.html');
 const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
 const rendererUrl = developmentUrl ? new URL(developmentUrl).href : pathToFileURL(rendererFile).href;
+const authorUrl = 'https://github.com/rajatsnvsingh';
 let window: BrowserWindow | null = null;
 protocol.registerSchemesAsPrivileged([{ scheme: 'gameshelf-artwork', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -56,6 +57,7 @@ if (!app.requestSingleInstanceLock()) {
     window = new BrowserWindow({
       width: 1440, height: 960, minWidth: 1000, minHeight: 700,
       title: 'GameShelf', backgroundColor: '#171b24', show: false,
+      icon: app.isPackaged ? join(directory, '../renderer/app-icon.png') : join(app.getAppPath(), 'src/renderer/public/app-icon.png'),
       webPreferences: {
         preload: join(directory, '../preload/index.cjs'),
         contextIsolation: true, nodeIntegration: false, sandbox: true,
@@ -63,7 +65,10 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     window.removeMenu();
-    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (url === authorUrl) void shell.openExternal(authorUrl);
+      return { action: 'deny' };
+    });
     window.webContents.on('will-navigate', (event) => event.preventDefault());
     window.webContents.on('will-attach-webview', (event) => event.preventDefault());
     function trusted(event: IpcMainInvokeEvent): boolean {

@@ -10,7 +10,8 @@
   let collectionId = $state<number | null>(null);
   let selectedId = $state<number | null>(null);
   let needsMatching = $state(false);
-  let page = $state<'home' | 'games' | 'collections' | 'settings'>('games');
+  let page = $state<'home' | 'games' | 'collections' | 'settings'>('home');
+  let settingsTab = $state<'general' | 'library' | 'providers'>('general');
   let settings = $state<SettingsView>();
   let matchingStatus = $state<MatchingStatus>({ phase: 'idle', attempted: 0, total: 0, matched: 0 });
   let titleFilter = $state('');
@@ -195,6 +196,31 @@
     finally { busy = false; }
   }
 
+  async function saveSettings(form: HTMLFormElement) {
+    const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
+    const result = await window.gameShelf.saveSettings({
+      collectionPrefix: get('prefix'),
+      showCollectionGames: (form.elements.namedItem('visible') as HTMLInputElement).checked,
+      matchingThreshold: Number(get('threshold')),
+      greedyMatch: (form.elements.namedItem('greedy-match') as HTMLInputElement).checked,
+      defaultSort: get('sort') as 'title' | 'releaseDate',
+      providerOrder: get('order').split(',').map(id => id.trim()).filter(Boolean),
+      providers: {
+        igdb: { enabled: (form.elements.namedItem('igdb') as HTMLInputElement).checked, configured: settings!.providers.igdb.configured },
+        thegamesdb: { enabled: (form.elements.namedItem('thegamesdb') as HTMLInputElement).checked, configured: settings!.providers.thegamesdb.configured },
+        steamgriddb: { enabled: (form.elements.namedItem('steamgriddb') as HTMLInputElement).checked, configured: settings!.providers.steamgriddb.configured }
+      },
+      credentials: {
+        igdbClientId: get('igdb-client'),
+        igdbClientSecret: get('igdb-secret'),
+        thegamesdbApiKey: get('thegamesdb-key'),
+        steamgriddbApiKey: get('steamgriddb-key')
+      }
+    });
+    if (result.ok) settings = result.value;
+    notice = result.ok ? 'Settings saved.' : result.message;
+  }
+
   onMount(() => {
     window.gameShelf.getAppInfo().then(info => { version = info.version; }).catch(() => { notice = 'Unable to read app information.'; });
     void refresh();
@@ -216,28 +242,41 @@
     <button class:active={page === 'home'} aria-pressed={page === 'home'} onclick={() => { page = 'home'; needsMatching = false; collectionId = null; }}>⌂ <span>Home</span></button>
     <button class:active={page === 'games'} aria-pressed={page === 'games'} onclick={() => { page = 'games'; needsMatching = false; collectionId = null; }}>▦ <span>All Games</span></button>
     <button class:active={page === 'collections'} aria-pressed={page === 'collections'} onclick={openCollectionsOverview}>▤ <span>Collections</span></button>
-    <button class:active={page === 'settings'} aria-pressed={page === 'settings'} onclick={() => page = 'settings'}>⚙ <span>Settings</span></button>
   </nav>
 
-  <section class="setup" aria-label="Library setup">
-    <h2>{library?.status === 'ready' ? 'Library ready' : library?.status === 'unavailable' ? 'Library unavailable' : 'Choose your library'}</h2>
-    {#if library?.root}<p class="path">{library.root}</p>{/if}
-    <div class="actions">
-      <button class="primary" disabled={busy || library?.status !== 'ready'} onclick={scan}>Scan library</button>
-      <button disabled={busy || !library || library.status === 'config-error'} onclick={() => refresh(true)}>Choose library folder</button>
-      <button disabled={busy} onclick={() => refresh()}>Retry</button>
-    </div>
-    <p role="status" aria-live="polite">{notice || library?.message || 'Loading…'}</p>
-  </section><section class="status-card sidebar-status" aria-label="Library status"><div><strong>{catalog.games.length}</strong><span>Games</span></div><div><strong>{catalog.collections.length}</strong><span>Collections</span></div><button onclick={() => { page = 'games'; needsMatching = true; collectionId = null; }}><strong>{catalog.games.filter(game => game.matchStatus === 'unmatched').length}</strong><span>Needs matching</span></button></section><section class="matching-status" aria-label="Matching status"><strong>{matchingStatus.phase === 'matching' ? `Matching ${matchingStatus.attempted}/${matchingStatus.total}` : matchingStatus.phase === 'scanning' ? 'Scanning library' : matchingStatus.phase === 'complete' ? 'Matching complete' : 'Matching ready'}</strong><span>{matchingStatus.message || 'Run Scan library to match unresolved games.'}</span>{#if matchingStatus.gameName && matchingStatus.phase === 'matching'}<small>{matchingStatus.gameName} · {matchingStatus.matched} matched</small>{/if}</section></aside>
+  <section class="status-card sidebar-status" aria-label="Library status"><div><strong>{catalog.games.length}</strong><span>Games</span></div><div><strong>{catalog.collections.length}</strong><span>Collections</span></div><button onclick={() => { page = 'games'; needsMatching = true; collectionId = null; }}><strong>{catalog.games.filter(game => game.matchStatus === 'unmatched').length}</strong><span>Needs matching</span></button></section>
+  <section class="matching-status" aria-label="Matching status"><strong>{matchingStatus.phase === 'matching' ? `Matching ${matchingStatus.attempted}/${matchingStatus.total}` : matchingStatus.phase === 'scanning' ? 'Scanning library' : matchingStatus.phase === 'complete' ? 'Matching complete' : 'Matching ready'}</strong><span>{matchingStatus.message || 'Run Scan library in Settings to match unresolved games.'}</span>{#if matchingStatus.gameName && matchingStatus.phase === 'matching'}<small>{matchingStatus.gameName} · {matchingStatus.matched} matched</small>{/if}</section>
+  {#if notice}<p class="sidebar-notice" role="status" aria-live="polite">{notice}</p>{/if}
+  <div class="sidebar-footer">
+    <button class="settings-link" class:active={page === 'settings'} aria-pressed={page === 'settings'} onclick={() => page = 'settings'}>⚙ <span>Settings</span></button>
+    <a class="author-link" href="https://github.com/rajatsnvsingh" target="_blank" rel="noreferrer">Made with ❤️ by Rajat Singh</a>
+  </div>
+  </aside>
 
   <section class="workspace">
 
   {#if page === 'settings' && settings}
-    <section class="setup settings-panel" aria-label="Settings"><h2>Settings</h2><p class="muted">Credentials are never shown after saving.</p>
-      <form class="settings-form" onsubmit={event => { event.preventDefault(); void (async () => { const form = event.currentTarget; const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value; const result = await window.gameShelf.saveSettings({ collectionPrefix: get('prefix'), showCollectionGames: (form.elements.namedItem('visible') as HTMLInputElement).checked, matchingThreshold: Number(get('threshold')), greedyMatch: (form.elements.namedItem('greedy-match') as HTMLInputElement).checked, defaultSort: get('sort') as 'title' | 'releaseDate', providerOrder: get('order').split(',').map(id => id.trim()).filter(Boolean), providers: { igdb: { enabled: (form.elements.namedItem('igdb') as HTMLInputElement).checked, configured: settings!.providers.igdb.configured }, thegamesdb: { enabled: (form.elements.namedItem('thegamesdb') as HTMLInputElement).checked, configured: settings!.providers.thegamesdb.configured }, steamgriddb: { enabled: (form.elements.namedItem('steamgriddb') as HTMLInputElement).checked, configured: settings!.providers.steamgriddb.configured } }, credentials: { igdbClientId: get('igdb-client'), igdbClientSecret: get('igdb-secret'), thegamesdbApiKey: get('thegamesdb-key'), steamgriddbApiKey: get('steamgriddb-key') } }); if (result.ok) settings = result.value; notice = result.ok ? 'Settings saved.' : result.message; })(); }}>
-        <label>Collection prefix <input name="prefix" value={settings.collectionPrefix} /></label><label><input name="visible" type="checkbox" checked={settings.showCollectionGames} /> Show collection games in main library</label><label>Matching threshold <input name="threshold" type="number" min="0" max="1" step="0.01" value={settings.matchingThreshold} /></label><label class="greedy-match"><input name="greedy-match" type="checkbox" checked={settings.greedyMatch} /> Greedy match <small>Always accept the first result ranked by the first provider that returns one.</small></label><label>Default sort <select name="sort" value={settings.defaultSort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label><label>Provider order <input name="order" value={settings.providerOrder.join(',')} /></label>
-        <fieldset><legend>Providers</legend><label><input name="igdb" type="checkbox" checked={settings.providers.igdb.enabled} /> IGDB {settings.providers.igdb.configured ? 'configured' : 'not configured'}</label><input name="igdb-client" placeholder="New IGDB client ID" /><input name="igdb-secret" type="password" placeholder="New IGDB client secret" /><label><input name="thegamesdb" type="checkbox" checked={settings.providers.thegamesdb.enabled} /> TheGamesDB {settings.providers.thegamesdb.configured ? 'configured' : 'not configured'}</label><input name="thegamesdb-key" type="password" placeholder="New TheGamesDB API key" /><label><input name="steamgriddb" type="checkbox" checked={settings.providers.steamgriddb.enabled} /> SteamGridDB {settings.providers.steamgriddb.configured ? 'configured' : 'not configured'}</label><input name="steamgriddb-key" type="password" placeholder="New SteamGridDB API key" /><p class="muted">SteamGridDB supplies cover and banner art only. After a game is matched, use Fetch artwork on its details page to request missing assets.</p></fieldset><button class="primary">Save settings</button></form>
-      <section class="matching"><h3>Catalog maintenance</h3><p class="muted">These actions affect catalog records only. They never alter installer folders.</p><button onclick={async () => { if (!confirm('Remove all records currently marked missing? This cannot be undone.')) return; const result = await window.gameShelf.deleteMissing(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Remove missing records</button><button onclick={async () => { if (!confirm('Rebuild the catalog from the selected library? This removes saved matches, manual metadata, and artwork associations.')) return; const result = await window.gameShelf.rebuildCatalog(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Rebuild catalog</button><button class="danger" onclick={async () => { if (!confirm('Wipe all catalog records, cached artwork, and logs? Your library selection, settings, provider credentials, game folders, and archives will not be changed.')) return; const result = await window.gameShelf.wipeLibrary(); if (result.ok) { catalog = { games: [], collections: [] }; library = await window.gameShelf.getLibraryState(); const current = await window.gameShelf.getSettings(); if (current.ok) settings = current.value; } notice = result.message || ''; }}>Wipe library</button></section>
+    <section class="setup settings-panel" aria-label="Settings"><h2>Settings</h2>
+      <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" role="tab" aria-selected={settingsTab === 'general'} class:active={settingsTab === 'general'} onclick={() => settingsTab = 'general'}>General</button>
+        <button type="button" role="tab" aria-selected={settingsTab === 'library'} class:active={settingsTab === 'library'} onclick={() => settingsTab = 'library'}>Library</button>
+        <button type="button" role="tab" aria-selected={settingsTab === 'providers'} class:active={settingsTab === 'providers'} onclick={() => settingsTab = 'providers'}>Providers</button>
+      </div>
+      <form class="settings-form" onsubmit={event => { event.preventDefault(); void saveSettings(event.currentTarget); }}>
+        <div class="settings-tab-panel" role="tabpanel" aria-label="General settings" hidden={settingsTab !== 'general'}>
+          <h3>General</h3><label>Default sort <select name="sort" value={settings.defaultSort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label>
+        </div>
+        <div class="settings-tab-panel" role="tabpanel" aria-label="Library settings" hidden={settingsTab !== 'library'}>
+          <h3>Library</h3><section class="library-setup" aria-label="Library setup"><h3>{library?.status === 'ready' ? 'Library ready' : library?.status === 'unavailable' ? 'Library unavailable' : 'Choose your library'}</h3>{#if library?.root}<p class="path">{library.root}</p>{/if}<div class="settings-actions"><button type="button" class="primary" disabled={busy || library?.status !== 'ready'} onclick={scan}>Scan library</button><button type="button" disabled={busy || !library || library.status === 'config-error'} onclick={() => refresh(true)}>Choose library folder</button><button type="button" disabled={busy} onclick={() => refresh()}>Retry</button></div><p class="muted">{library?.message || 'Loading…'}</p></section>
+          <label>Collection prefix <input name="prefix" value={settings.collectionPrefix} /></label><label class="checkbox-label"><input name="visible" type="checkbox" checked={settings.showCollectionGames} /> Show collection games in main library</label>
+          <section class="matching catalog-maintenance"><h3>Catalog maintenance</h3><p class="muted">These actions affect catalog records only. They never alter installer folders.</p><div class="settings-actions"><button type="button" onclick={async () => { if (!confirm('Remove all records currently marked missing? This cannot be undone.')) return; const result = await window.gameShelf.deleteMissing(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Remove missing records</button><button type="button" onclick={async () => { if (!confirm('Rebuild the catalog from the selected library? This removes saved matches, manual metadata, and artwork associations.')) return; const result = await window.gameShelf.rebuildCatalog(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Rebuild catalog</button><button type="button" class="danger" onclick={async () => { if (!confirm('Wipe all catalog records, cached artwork, and logs? Your library selection, settings, provider credentials, game folders, and archives will not be changed.')) return; const result = await window.gameShelf.wipeLibrary(); if (result.ok) { catalog = { games: [], collections: [] }; library = await window.gameShelf.getLibraryState(); const current = await window.gameShelf.getSettings(); if (current.ok) settings = current.value; } notice = result.message || ''; }}>Wipe library</button></div></section>
+        </div>
+        <div class="settings-tab-panel" role="tabpanel" aria-label="Provider settings" hidden={settingsTab !== 'providers'}>
+          <h3>Providers</h3><p class="muted">Credentials are never shown after saving.</p><label>Matching threshold <input name="threshold" type="number" min="0" max="1" step="0.01" value={settings.matchingThreshold} /></label><label class="greedy-match"><input name="greedy-match" type="checkbox" checked={settings.greedyMatch} /> Greedy match <small>Always accept the first result ranked by the first provider that returns one.</small></label><label>Provider order <input name="order" value={settings.providerOrder.join(',')} /></label>
+          <fieldset><legend>Provider credentials</legend><label><input name="igdb" type="checkbox" checked={settings.providers.igdb.enabled} /> IGDB {settings.providers.igdb.configured ? 'configured' : 'not configured'}</label><input name="igdb-client" placeholder="New IGDB client ID" /><input name="igdb-secret" type="password" placeholder="New IGDB client secret" /><label><input name="thegamesdb" type="checkbox" checked={settings.providers.thegamesdb.enabled} /> TheGamesDB {settings.providers.thegamesdb.configured ? 'configured' : 'not configured'}</label><input name="thegamesdb-key" type="password" placeholder="New TheGamesDB API key" /><label><input name="steamgriddb" type="checkbox" checked={settings.providers.steamgriddb.enabled} /> SteamGridDB {settings.providers.steamgriddb.configured ? 'configured' : 'not configured'}</label><input name="steamgriddb-key" type="password" placeholder="New SteamGridDB API key" /><p class="muted">SteamGridDB supplies cover and banner art only. After a game is matched, use Fetch artwork on its details page to request missing assets.</p></fieldset>
+        </div>
+        <button class="primary save-settings">Save settings</button>
+      </form>
     </section>
   {:else}
   <div class="catalog" class:detail-open={selected !== undefined} aria-busy={busy}>
@@ -262,7 +301,7 @@
       {#if page === 'home'}<div class="home"><h2>Home</h2><section class="home-section"><h3>Collections</h3>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span></button>{/each}</div>{/if}</section>{#if recentlyAdded.length}<section class="home-section"><h3>Recently added</h3><div class="game-grid home-grid">{#each recentlyAdded as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong><small>{date(game.addedAt)}</small></span></button>{/each}</div></section>{/if}<section class="home-section"><div class="group-heading"><h3>Library</h3><label>Group by <select bind:value={homeGroupBy}><option value="decade">Release decade</option><option value="genre">Genre</option></select></label></div>{#if homeGroups.length === 0}<p class="empty">No games yet. Choose your folder, then select Scan library.</p>{:else}{#each homeGroups as group (group.label)}<section class="home-group"><h3>{group.label} <span class="count">{group.games.length}</span></h3><div class="game-grid home-grid">{#each group.games as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong>{#if homeGroupBy === 'genre' && game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}</span></button>{/each}</div></section>{/each}{/if}</section></div>{/if}
       {#if page === 'collections' && collectionId === null}<div class="home"><h2>Collections</h2>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span>{#if item.missing}<small class="missing">Missing</small>{/if}</button>{/each}</div>{/if}</div>{/if}
       {#if page === 'games' || (page === 'collections' && collectionId !== null)}
-      <div class="filters" aria-label="Game filters"><label class="search-filter"><span class="search-icon" aria-hidden="true">⌕</span><input bind:value={titleFilter} placeholder="Search your library" /></label><label>Year <select bind:value={yearFilter}><option value="">All years</option>{#each years as year}<option value={String(year)}>{year}</option>{/each}</select></label><label>Genre <select bind:value={genreFilter}><option value="">All genres</option>{#each genres as genre}<option value={genre}>{genre}</option>{/each}</select></label><label>Collection <select bind:value={collectionFilter}><option value="all">All collections</option><option value="none">No collection</option>{#each catalog.collections as item}<option value={String(item.id)}>{item.displayName || item.folderName}</option>{/each}</select></label><label>Sort <select bind:value={sort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label></div>
+      <div class="filters" aria-label="Game filters"><label class="search-filter"><span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg></span><input bind:value={titleFilter} placeholder="Search your library" /></label><label>Year <select bind:value={yearFilter}><option value="">All years</option>{#each years as year}<option value={String(year)}>{year}</option>{/each}</select></label><label>Genre <select bind:value={genreFilter}><option value="">All genres</option>{#each genres as genre}<option value={genre}>{genre}</option>{/each}</select></label><label>Collection <select bind:value={collectionFilter}><option value="all">All collections</option><option value="none">No collection</option>{#each catalog.collections as item}<option value={String(item.id)}>{item.displayName || item.folderName}</option>{/each}</select></label><label>Sort <select bind:value={sort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label></div>
       <div class="list-heading">{#if page === 'collections' && collection}<button class="back" onclick={backFromCollection}>← Back</button>{/if}<h2>{needsMatching ? 'Needs Matching' : collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2></div>
       {#if games.length === 0}
         <p class="empty">{needsMatching ? 'No games need matching.' : collection ? 'This collection has no cataloged games.' : 'No games yet. Choose your folder, then select Scan library.'}</p>
@@ -286,13 +325,14 @@
     </section>
 
     {#if selected}<section class="details" aria-label="Game details">
+        <div class="detail-controls"><div class="edit-menu"><button aria-haspopup="menu" aria-expanded={detailMenu} onclick={() => detailMenu = !detailMenu}>Edit <span aria-hidden="true">⋮</span></button>{#if detailMenu}<div class="edit-menu-items" role="menu"><button role="menuitem" onclick={openMatching}>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</button><button role="menuitem" onclick={() => { detailMenu = false; detailModal = 'manual'; }}>Edit metadata & artwork</button>{#if selected.matchStatus === 'matched'}<button role="menuitem" onclick={openArtwork}>Fetch artwork</button>{/if}<button role="menuitem" class="danger" onclick={clearMetadata}>Clear all metadata</button></div>{/if}</div><button class="close details-close" aria-label="Close game details" onclick={() => { selectedId = null; detailModal = null; detailMenu = false; }}>×</button></div>
         <div class="detail-hero" class:has-background={Boolean(selected.backgroundUrl)}>
           {#if selected.backgroundUrl}<img class="background" src={selected.backgroundUrl} alt="" />{/if}
-          <button class="close details-close" aria-label="Close game details" onclick={() => { selectedId = null; detailModal = null; detailMenu = false; }}>×</button><div class="detail-heading"><h2>{selected.metadata.title || selected.folderName}</h2></div>
+          <div class="detail-heading"><h2>{selected.metadata.title || selected.folderName}</h2></div>
         </div>
         <div class="detail-aside">{#if selected.coverUrl}<img class="cover" src={selected.coverUrl} alt={`Cover for ${selected.metadata.title || selected.folderName}`} />{:else}<div class="cover placeholder" aria-label="No cover artwork available">No cover artwork</div>{/if}{#if selectedCollection}<button class="collection-link" onclick={() => openCollection(selectedCollection.id)}><small>Found in collection</small><strong>{selectedCollection.displayName || selectedCollection.folderName}</strong></button>{/if}</div>
         {#if selected.metadata.description}<p class="description">{selected.metadata.description}</p>{/if}
-        <button class="install" disabled={busy} onclick={openFolder}>▣ Install</button>{#if selectedIsSingleFile}<button disabled={busy} onclick={openContainerFolder}>▣ Open Container Folder</button>{/if}
+        <div class="location-actions"><button class="install" disabled={busy} onclick={openFolder}>▣ Install</button>{#if selectedIsSingleFile}<button disabled={busy} onclick={openContainerFolder}>▣ Open Container Folder</button>{/if}</div>
         <dl>
           <dt>Metadata match</dt><dd>{selected.matchStatus === 'matched' ? `${selected.bindingSource} · ${selected.providerId} · ${selected.providerRecordId}` : 'Needs matching'}</dd>
           {#if selected.metadata.releaseYear}<dt>Release year</dt><dd>{selected.metadata.releaseYear}</dd>{/if}
@@ -306,7 +346,6 @@
           <dt>Added</dt><dd>{date(selected.addedAt)}</dd>
           <dt>Last seen</dt><dd>{date(selected.lastSeenAt)}</dd>
         </dl>
-        <div class="detail-actions"><div class="edit-menu"><button aria-haspopup="menu" aria-expanded={detailMenu} onclick={() => detailMenu = !detailMenu}>Edit <span aria-hidden="true">⋮</span></button>{#if detailMenu}<div class="edit-menu-items" role="menu"><button role="menuitem" onclick={openMatching}>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</button><button role="menuitem" onclick={() => { detailMenu = false; detailModal = 'manual'; }}>Edit metadata & artwork</button>{#if selected.matchStatus === 'matched'}<button role="menuitem" onclick={openArtwork}>Fetch artwork</button>{/if}<button role="menuitem" class="danger" onclick={clearMetadata}>Clear all metadata</button></div>{/if}</div></div>
         {#if detailModal === 'matching'}<div class="modal-backdrop" role="button" tabindex="0" onclick={() => detailModal = null} onkeydown={event => { if (event.key === 'Escape' || event.key === 'Enter') detailModal = null; }}><div class="modal" role="dialog" tabindex="-1" aria-label="Metadata matching" onclick={event => event.stopPropagation()} onkeydown={event => event.stopPropagation()}><button class="close" onclick={() => detailModal = null}>×</button>
         <section class="matching" aria-label="Metadata matching">
           <h3>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</h3>
@@ -353,7 +392,7 @@
   :global(*) { box-sizing: border-box; }
   main { height: 100vh; }
   .app-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); height: 100vh; overflow: hidden; }
-  .sidebar { min-height: 0; overflow-y: auto; padding: 22px 14px; background: #131821; border-right: 1px solid #394154; }
+  .sidebar { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 22px 14px; background: #131821; border-right: 1px solid #394154; }
   .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 22px 28px; }
   header { display: block; margin-bottom: 22px; }
   .eyebrow { color: #aabaff; font-size: 11px; letter-spacing: .12em; margin: 0; }
@@ -367,7 +406,6 @@
   .setup { margin-bottom: 20px; }
   .setup .path { margin: -4px 0 16px; }
   [role='status'] { margin-bottom: 0; min-height: 20px; }
-  .actions { display: grid; gap: 8px; }
   button { padding: 9px 12px; border: 1px solid #566380; border-radius: 6px; background: #293246; color: #edf0f6; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
   button:hover { background: #35446a; }
   .primary { background: #435caa; border-color: #788bce; }
@@ -393,12 +431,20 @@
   .filters input, .filters select { min-width: 115px; padding: 9px 10px; color: #edf0f6; background: #121722; border: 1px solid #566380; border-radius: 7px; outline: none; }
   .filters input:focus, .filters select:focus { border-color: #9cadff; box-shadow: 0 0 0 3px rgb(156 173 255 / .18); }
   .filters .search-filter { flex: 1 1 210px; display: flex; align-items: center; padding: 0 10px; color: #aabaff; background: #121722; border: 1px solid #566380; border-radius: 7px; }
-  .search-icon { display: grid; width: 20px; height: 100%; place-items: center; flex: none; font-size: 18px; line-height: 1; }
+  .search-icon { display: flex; width: 20px; height: 100%; align-items: center; justify-content: center; flex: none; }
+  .search-icon svg { display: block; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   .filters .search-filter input { width: 100%; min-width: 0; border: 0; box-shadow: none; background: transparent; font-size: 13px; letter-spacing: normal; text-transform: none; }
   .status-card { display: flex; justify-content: flex-end; gap: 22px; margin: 0 0 18px auto; width: fit-content; }
   .sidebar-status { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-content: initial; gap: 4px; margin: 0; padding: 10px 6px; }
   .matching-status { display: grid; gap: 5px; margin-top: 12px; padding: 10px; border: 1px solid #4c5b78; border-radius: 8px; background: #1a2230; }
   .matching-status strong { font-size: 13px; }.matching-status span, .matching-status small { color: #bcc5d5; font-size: 11px; overflow-wrap: anywhere; }
+  .sidebar-notice { margin: 12px 2px 0; overflow-wrap: anywhere; }
+  .sidebar-footer { display: grid; gap: 10px; margin-top: auto; padding-top: 24px; }
+  .settings-link { display: flex; align-items: center; width: 100%; gap: 10px; }
+  .settings-link span { color: #bcc5d5; }
+  .author-link { color: #929db1; font-size: 10px; line-height: 1.4; text-align: center; text-decoration: none; }
+  .author-link:hover { color: #c7d0e1; text-decoration: underline; }
+  .author-link:focus-visible { outline: 2px solid #aabaff; outline-offset: 3px; }
   .status-card div, .status-card button { display: grid; gap: 2px; min-width: 0; padding: 6px 2px; text-align: center; overflow-wrap: anywhere; }
   .status-card strong { font-size: 20px; }.status-card span { color: #bcc5d5; font-size: 11px; }
   nav button { width: 100%; margin-bottom: 8px; overflow-wrap: anywhere; }
@@ -439,10 +485,14 @@
   dt { color: #a5b0c6; font-size: 12px; margin-top: 14px; }
   dd { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
   .details button { margin-top: 8px; }
+  .location-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .location-actions button { margin: 0; }
   .install { background: #276a48; border-color: #62ae82; font-weight: 700; }
   .install:hover { background: #348158; }
   .details { position: relative; }
-  .details-close { position: absolute; z-index: 3; top: 8px; right: 8px; margin: 0 !important; font-size: 18px; padding: 2px 9px; }
+  .detail-controls { position: absolute; z-index: 4; top: 8px; right: 8px; display: flex; align-items: start; gap: 8px; }
+  .detail-controls button { margin: 0; }
+  .details-close { font-size: 18px; padding: 2px 9px; }
   .detail-hero { position: relative; margin-bottom: 12px; }
   .detail-hero.has-background { position: relative; min-height: 150px; display: flex; align-items: end; overflow: hidden; border-radius: 6px; }
   .detail-heading { position: relative; z-index: 1; display: flex; align-items: start; gap: 12px; width: 100%; padding-right: 42px; }
@@ -471,20 +521,30 @@
   .candidate dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 8px 0 0; }
   .candidate dt, .candidate dd { margin: 0; font-size: 12px; }
   .candidate dt { color: #a5b0c6; }
-  .settings-form { display: grid; gap: 16px; max-width: 620px; }
+  .settings-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 20px; border-bottom: 1px solid #394154; padding-bottom: 10px; }
+  .settings-tabs button { min-width: 100px; text-align: center; }
+  .settings-form { display: grid; gap: 16px; max-width: 720px; }
+  .settings-tab-panel { display: grid; gap: 16px; }
+  .settings-tab-panel[hidden] { display: none; }
+  .library-setup { padding: 16px; border: 1px solid #4c5b78; border-radius: 8px; background: #171d29; }
+  .library-setup .path { margin: -4px 0 16px; }
+  .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .settings-actions button { margin: 0; }
+  .catalog-maintenance { margin-top: 4px; }
+  .save-settings { width: fit-content; }
   .settings-form label { display: grid; gap: 6px; }
   .settings-form input, .settings-form select { width: 100%; padding: 8px; color: #edf0f6; background: #171b24; border: 1px solid #566380; border-radius: 4px; }
   .settings-form fieldset { display: grid; gap: 10px; border: 1px solid #566380; border-radius: 6px; padding: 14px; }
   .settings-form fieldset label { display: block; }
   .settings-form fieldset label { display: flex; align-items: center; gap: 8px; }
   .settings-form input[type='checkbox'] { width: auto; margin: 0; }
+  .settings-form .checkbox-label { display: flex; align-items: center; gap: 8px; }
   .settings-form .greedy-match { display: block; padding: 12px; border: 1px solid #566380; border-radius: 6px; background: #171d29; }
   .greedy-match small { margin-left: 28px; }
-  .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
   .edit-menu { position: relative; }
   .edit-menu > button { display: inline-flex; align-items: center; gap: 8px; }
   .edit-menu > button span { font-size: 18px; line-height: .6; }
-  .edit-menu-items { display: grid; min-width: 190px; margin-top: 6px; padding: 6px; border: 1px solid #566380; border-radius: 7px; background: #202633; box-shadow: 0 10px 30px #0008; }
+  .edit-menu-items { position: absolute; top: 100%; right: 0; display: grid; min-width: 190px; margin-top: 6px; padding: 6px; border: 1px solid #566380; border-radius: 7px; background: #202633; box-shadow: 0 10px 30px #0008; }
   .edit-menu-items button { width: 100%; margin: 0; }
   .artwork-modal label { display: grid; gap: 4px; margin: 16px 0 6px; font-size: 13px; }
   .artwork-modal small { color: #bcc5d5; font-size: 11px; }
@@ -502,6 +562,6 @@
   .modal { position: relative; width: min(620px, 100%); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid #566380; border-radius: 10px; background: #202633; box-shadow: 0 20px 60px #000; }
   .modal .matching { margin-top: 0; }.close { float: right; font-size: 20px; padding: 2px 9px; }
   @media (max-width: 850px) {
-    :global(html), :global(body) { height: auto; overflow: auto; } main, .app-shell { height: auto; overflow: visible; }.app-shell { grid-template-columns: 1fr; }.sidebar { overflow: visible; border-right: 0; border-bottom: 1px solid #394154; }.pages { grid-template-columns: repeat(4, 1fr); }.workspace { display: block; overflow: visible; padding: 16px; }.catalog { display: grid; overflow: visible; grid-template-columns: 1fr; }.game-list, .details, .settings-panel { height: auto; overflow: visible; }.details { grid-column: auto; }
+    :global(html), :global(body) { height: auto; overflow: auto; } main, .app-shell { height: auto; overflow: visible; }.app-shell { grid-template-columns: 1fr; }.sidebar { overflow: visible; border-right: 0; border-bottom: 1px solid #394154; }.pages { grid-template-columns: repeat(3, 1fr); }.sidebar-footer { margin-top: 12px; }.workspace { display: block; overflow: visible; padding: 16px; }.catalog { display: grid; overflow: visible; grid-template-columns: 1fr; }.game-list, .details, .settings-panel { height: auto; overflow: visible; }.details { grid-column: auto; }
   }
 </style>

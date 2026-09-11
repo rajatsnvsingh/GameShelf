@@ -181,7 +181,7 @@ Deleting a missing entry removes catalog data only, never its installer folder. 
 
 ## Current MVP editing and maintenance
 
-The Settings UI persists collection preferences, provider order/enabled state and credential replacements, confidence threshold, opt-in greedy matching, and default sort through validated IPC. Title/year/genre/collection filters and navigation remain transient. Home groups by release decade or genre; the first scan and rebuild establish a baseline excluded from Recently added.
+The Settings UI persists collection preferences, provider order/enabled state and credential replacements, confidence threshold, opt-in greedy matching, and default sort through validated IPC. It is divided into General, Library, and Providers tabs; library selection, manual scanning, and catalog maintenance live under Library. Title/year/genre/collection filters and navigation remain transient. Every launch starts on Home, which groups by release decade or genre; the first scan and rebuild establish a baseline excluded from Recently added.
 
 The manual editor exposes title and description overrides and clipboard-pasted covers/backgrounds. Display applies manual values over provider data. Explicit replace-all rescrape fetches the bound provider record before clearing manual work. Clear-all metadata removes the binding, provider/manual metadata, and provider artwork associations but preserves pasted artwork. Confirmed Fetch artwork previews may replace pasted artwork; normal provider cache writes may not.
 

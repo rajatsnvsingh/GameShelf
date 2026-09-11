@@ -19,7 +19,7 @@ This is the concise decision ledger. Phase-specific sections preserve historical
 | Metadata | Optional; multiple enabled providers with INI priority and credentials. Exact normalized titles use provider ranking; approximate auto-matches require confidence and an unambiguous lead. An opt-in greedy setting accepts the first provider-ranked candidate. |
 | Manual work | Stored manual matches override provider order. Manual metadata/artwork overrides survive normal scans/refreshes; only explicit replace-all rescrape may replace them. |
 | Artwork | Covers and backgrounds first; locally cached, with clipboard-paste custom images. Manual > cached provider > placeholder. |
-| UI | Playnite-inspired, windowed, mouse/keyboard. Home (collections, recently added, release-decade or genre groups), All Games, Collections, details, Needs Matching, Settings. Recently added excludes the catalog's initial scan and rebuild baseline. |
+| UI | Playnite-inspired, windowed, mouse/keyboard. Always start on Home. Settings is anchored at the sidebar bottom and uses General, Library, and Providers tabs; library actions live under Library. Home includes collections, recently added, and release-decade or genre groups. Recently added excludes the catalog's initial scan and rebuild baseline. |
 | Discovery UI | Title search, year/genre/collection filters, alphabetical/release-date sorts. Omit unavailable metadata sections. |
 | Settings | INI holds durable choices and plaintext API keys. Do not persist incidental UI state. |
 | Network | Only enabled metadata/artwork provider traffic; no telemetry or automatic updates. Local catalog works without providers and offline after caching. |

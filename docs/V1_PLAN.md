@@ -146,6 +146,12 @@ Reworked the README around the MVP, added a nontechnical setup/use guide and a s
 
 Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed. Local documentation links, anchors, code-fence balance, documented npm script names, and SVG XML were checked. The banner was rendered for visual inspection. Electron GUI smoke and live-provider checks were not run for this documentation-only pass; current smoke expectations need updating separately. Mermaid blocks were reviewed as source; GitHub rendering and remote repository settings were not verified or changed.
 
+## UI polish pass (2026-09-10)
+
+GameShelf now starts on Home. Library selection, scanning, collection preferences, and catalog maintenance are grouped in the Library tab of a three-tab Settings screen; General contains the default sort and Providers contains matching/provider configuration. Settings and the author link are anchored at the sidebar bottom. Detail actions, same-row buttons, and the search icon received spacing/alignment corrections, and the app now includes a project-owned icon for the window and renderer.
+
+Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed and copied the icon into the renderer output. A focused production Electron check used a disposable library and verified Home startup, all three settings tabs, bottom sidebar placement, the allowlisted author URL, library/settings action spacing, search-icon centering, location-action spacing, and Edit-before-Close ordering. Its screenshot was visually inspected. No live-provider check or user library was used.
+
 ## Product completion criteria
 
 A portable Windows build catalogs the specified folder grammar, survives relocation and restart, browses offline, protects manual work, and opens the correct folder. IGDB and TheGamesDB metadata, supplemental SteamGridDB artwork, manual matching, cached/custom artwork, settings, and explicit maintenance flows work. Other providers are deferred. All applicable checks pass or limitations are clearly recorded. No out-of-scope manager/launcher behavior is included.

@@ -47,7 +47,7 @@ GameShelf recognizes:
 
 Collections are recognized only directly inside the library root. GameShelf does not search deeper inside game folders or open files to discover their contents. An empty game folder still counts as an entry.
 
-Scans happen only when you select **Scan library**. Opening GameShelf, choosing a folder, and selecting **Retry** do not scan. With providers enabled, matching begins after the local scan has saved your entries; progress appears in the sidebar.
+Scans happen only when you select **Settings > Library > Scan library**. Opening GameShelf, choosing a folder, and selecting **Retry** do not scan. With providers enabled, matching begins after the local scan has saved your entries; progress appears in the sidebar.
 
 ## 3. Browse your shelf
 
@@ -57,11 +57,11 @@ Scans happen only when you select **Scan library**. Opening GameShelf, choosing 
 | **All Games** | Search titles, filter by year, genre, or collection, and sort by title or release date. |
 | **Collections** | Open a collection and browse its members. |
 | **Needs matching** | Select the sidebar count to find entries without a metadata match. A `!` on a game card also marks an unresolved entry. |
-| **Settings** | Change library preferences, configure providers, and manage catalog maintenance. |
+| **Settings** | Use the bottom-of-sidebar link to open General, Library, and Providers tabs. |
 
 Select a game card to see its details. Missing descriptions, dates, or artwork mean that information has not been added yet.
 
-In **Settings**, turn off **Show collection games in main library** if you prefer to browse those games through their collections. Title search can still find them. Select **Save settings** after changing preferences. Search terms and your current page are temporary; **Default sort** is a saved preference.
+GameShelf always opens on **Home**. In **Settings > Library**, turn off **Show collection games in main library** if you prefer to browse those games through their collections. Title search can still find them. **General** contains the default sort, **Library** contains folder, scan, collection, and maintenance controls, and **Providers** contains matching and credential options. Select **Save settings** after changing preferences. Search terms and your current page are temporary.
 
 ### Open a game's folder
 
@@ -71,7 +71,7 @@ The current details button labeled **Install** opens the folder for a folder ent
 
 ## 4. Add game details and covers (optional)
 
-You can leave every provider disabled and use the catalog with your own titles and images. To enable online matching, open **Settings** and configure a provider:
+You can leave every provider disabled and use the catalog with your own titles and images. To enable online matching, open **Settings > Providers** and configure a provider:
 
 | Provider | What it adds | What to enter |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ You can leave every provider disabled and use the catalog with your own titles a
 1. Enter the credentials for the provider you want and check its enable box.
 2. Make sure **Provider order** includes its name. The default is `igdb,thegamesdb,steamgriddb`; to use only IGDB, enter `igdb`.
 3. Select **Save settings**.
-4. Select **Scan library** to try matching unresolved entries, or use **Match automatically** for one game as described below.
+4. Open **Settings > Library** and select **Scan library** to try matching unresolved entries, or use **Match automatically** for one game as described below.
 
 Providers are tried in the listed order when they can supply the requested information. SteamGridDB supplies artwork only; enabling it alone does not match game descriptions. Changing the order does not replace existing matches.
 
@@ -127,12 +127,12 @@ Destructive maintenance actions ask for confirmation. These operations affect th
 
 | Action | Effect |
 | --- | --- |
-| **Scan library** | Updates discoveries and missing status, preserving existing matches and manual work. Use this for routine changes. |
+| **Settings > Library > Scan library** | Updates discoveries and missing status, preserving existing matches and manual work. Use this for routine changes. |
 | **Edit > Clear all metadata** | Clears that game's provider match, metadata, manual text, and provider artwork associations. Keeps pasted artwork and returns the game to Needs Matching. |
 | **Replace all manual work** in the manual editor | Replaces that game's manual metadata and artwork using its current provider record. If retrieval fails, existing work is preserved. |
-| **Settings > Remove missing records** | Deletes all catalog records currently marked missing. This cannot be undone through the app. |
-| **Settings > Rebuild catalog** | Replaces the catalog from the selected library, losing matches, manual metadata, and artwork associations. Use this explicitly when switching to a different library. |
-| **Settings > Wipe library** | Deletes catalog records, cached artwork, and logs. Keeps library selection, settings, and provider credentials. |
+| **Settings > Library > Remove missing records** | Deletes all catalog records currently marked missing. This cannot be undone through the app. |
+| **Settings > Library > Rebuild catalog** | Replaces the catalog from the selected library, losing matches, manual metadata, and artwork associations. Use this explicitly when switching to a different library. |
+| **Settings > Library > Wipe library** | Deletes catalog records, cached artwork, and logs. Keeps library selection, settings, and provider credentials. |
 
 ## Troubleshooting
 
