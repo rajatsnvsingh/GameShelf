@@ -76,7 +76,7 @@ Roots containing the app or overlapping its data are rejected, including resolve
 
 ## Repository presentation
 
-The README uses the application's local icon and GitHub-native Mermaid diagrams. No external fonts, image hotlinks, generated data, or provider art are needed to display them.
+The README uses a local decorative SVG banner with the application's icon and GitHub-native Mermaid diagrams. No external fonts, image hotlinks, generated data, or provider art are needed to display them.
 
 Suggested GitHub About description: **A Windows game catalog with collections, local artwork, and offline browsing. Built with Electron, Svelte, and TypeScript.**
 

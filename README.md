@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="src/renderer/public/app-icon.png" alt="GameShelf logo" width="160">
+![GameShelf — Your collection, on display](docs/assets/banner.svg)
 
 # GameShelf
 

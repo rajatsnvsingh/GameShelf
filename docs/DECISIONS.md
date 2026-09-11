@@ -81,4 +81,4 @@ Launching/installing/updating games; inspecting or extracting installers/archive
 
 ## Documentation presentation (2026-09-10)
 
-The README is the project showcase, with native Mermaid architecture diagrams and the local application icon. The user guide covers setup and use; development commands and current limitations have a separate reference. Existing milestone verification entries remain historical evidence. No license, release, or remote repository setting is assigned by this documentation pass.
+The README is the project showcase, with native Mermaid architecture diagrams and a local decorative SVG banner that includes the application icon. The user guide covers setup and use; development commands and current limitations have a separate reference. Existing milestone verification entries remain historical evidence. No license, release, or remote repository setting is assigned by this documentation pass.

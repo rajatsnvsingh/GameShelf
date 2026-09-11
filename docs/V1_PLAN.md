@@ -142,9 +142,9 @@ Catalog-only maintenance adds explicit missing-record deletion and a confirmed r
 
 ## Documentation showcase pass (2026-09-10)
 
-Reworked the README around the MVP, added a nontechnical setup/use guide and a separate development reference, two Mermaid architecture diagrams, contributor guidance, and GitHub issue/PR templates. Updated current scanner documentation and distinguished historical milestone notes from present status. Recorded the existing file-opening boundary deviation without changing runtime behavior.
+Reworked the README around the MVP, added a nontechnical setup/use guide and a separate development reference, a local SVG banner, two Mermaid architecture diagrams, contributor guidance, and GitHub issue/PR templates. Updated current scanner documentation and distinguished historical milestone notes from present status. Recorded the existing file-opening boundary deviation without changing runtime behavior.
 
-Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed. Local documentation links, anchors, code-fence balance, and documented npm script names were checked. The application icon was rendered for visual inspection. Electron GUI smoke and live-provider checks were not run for this documentation-only pass; current smoke expectations need updating separately. Mermaid blocks were reviewed as source; GitHub rendering and remote repository settings were not verified or changed.
+Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed. Local documentation links, anchors, code-fence balance, and documented npm script names were checked. The banner was rendered for visual inspection. Electron GUI smoke and live-provider checks were not run for this documentation-only pass; current smoke expectations need updating separately. Mermaid blocks were reviewed as source; GitHub rendering and remote repository settings were not verified or changed.
 
 ## UI polish pass (2026-09-10)
 
