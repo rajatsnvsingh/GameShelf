@@ -19,6 +19,7 @@ export interface GameDetails extends SearchCandidate {
   genres?: readonly string[];
   rating?: number; // Normalized 0–100; omit when unavailable.
   artwork: readonly ArtworkReference[];
+  screenshots?: readonly { url: string }[];
 }
 
 export interface MetadataProvider {

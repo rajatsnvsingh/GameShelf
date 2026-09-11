@@ -16,13 +16,15 @@ function extension(bytes: Uint8Array, type: string | null): 'jpg' | 'png' | 'web
 export class ArtworkCache {
   private readonly base: string;
   private readonly fetcher: typeof fetch;
-  constructor(base: string, fetcher: typeof fetch = globalThis.fetch) { this.base = base; this.fetcher = fetcher; }
+  constructor(base: string, fetcher: typeof fetch = (url, init) => globalThis.fetch(url, init)) { this.base = base; this.fetcher = fetcher; }
 
-  async download(gameId: number, artwork: ArtworkReference, preview = false): Promise<string> {
-    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(artwork.kind)) throw new ArtworkError();
+  async download(gameId: number, artwork: ArtworkReference | { kind: 'screenshot'; url: string }, preview = false): Promise<string> {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background', 'screenshot'].includes(artwork.kind)) throw new ArtworkError();
     let url: URL;
     try { url = new URL(artwork.url); } catch { throw new ArtworkError(); }
     if (url.protocol !== 'https:' || url.username || url.password) throw new ArtworkError();
+    if (artwork.kind === 'screenshot' && (url.origin !== 'https://images.igdb.com' ||
+      !/^\/igdb\/image\/upload\/t_1080p\/[a-zA-Z0-9_-]+\.jpg$/.test(url.pathname) || url.search || url.hash)) throw new ArtworkError();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     try {

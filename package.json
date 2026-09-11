@@ -14,6 +14,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:smoke": "npm run build && node scripts/smoke.mjs",
     "test:smoke:dev": "npm run build && node scripts/smoke.mjs --dev",
+    "test:screenshots:smoke": "npm run build && node scripts/screenshots-smoke.mjs",
     "capture:screenshots": "npm run build && node scripts/smoke.mjs --screenshots",
     "test:database:smoke": "npm run build && node scripts/database-smoke.mjs",
     "test:igdb:live": "node --experimental-strip-types scripts/igdb-live.ts",

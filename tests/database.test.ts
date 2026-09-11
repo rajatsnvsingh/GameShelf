@@ -48,9 +48,9 @@ test('migrations initialize once and apply a later version in order', t => {
   const before = db.prepare('SELECT * FROM schema_migrations').all();
   applyMigrations(db);
   assert.deepEqual(db.prepare('SELECT * FROM schema_migrations').all(), before);
-  const next = [...migrations, { version: 3, name: 'fixture-extension', sql: 'CREATE TABLE fixture_extension (value TEXT)' }];
+  const next = [...migrations, { version: migrations.length + 1, name: 'fixture-extension', sql: 'CREATE TABLE fixture_extension (value TEXT)' }];
   applyMigrations(db, next);
-  assert.deepEqual(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), [{ version: 1 }, { version: 2 }, { version: 3 }]);
+  assert.deepEqual(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), next.map(({ version }) => ({ version })));
   db.prepare('INSERT INTO fixture_extension VALUES (?)').run('usable');
 });
 
@@ -59,11 +59,11 @@ test('failed migration batch rolls back schema and history while preserving exis
   repo.reconcile(snapshot(), first);
   const before = repo.listGames();
   assert.throws(() => applyMigrations(db, [...migrations,
-    { version: 3, name: 'fixture-extension', sql: 'CREATE TABLE fixture_extension (value TEXT)' },
-    { version: 4, name: 'broken', sql: 'INSERT INTO nonexistent_table VALUES (1)' }
+    { version: migrations.length + 1, name: 'fixture-extension', sql: 'CREATE TABLE fixture_extension (value TEXT)' },
+    { version: migrations.length + 2, name: 'broken', sql: 'INSERT INTO nonexistent_table VALUES (1)' }
   ]));
   assert.deepEqual(repo.listGames(), before);
-  assert.deepEqual(db.prepare('SELECT version FROM schema_migrations').all(), [{ version: 1 }, { version: 2 }]);
+  assert.deepEqual(db.prepare('SELECT version FROM schema_migrations').all(), migrations.map(({ version }) => ({ version })));
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'fixture_extension'").get(), undefined);
 });
 
@@ -80,7 +80,7 @@ test('future, inconsistent, or nonconsecutive migrations are refused', t => {
   db.prepare('UPDATE schema_migrations SET name = ? WHERE version = 1').run('changed');
   assert.throws(() => applyMigrations(db), /history/);
   db.prepare('UPDATE schema_migrations SET name = ? WHERE version = 1').run(migrations[0].name);
-  db.prepare('INSERT INTO schema_migrations VALUES (3, ?, ?)').run('future', first);
+  db.prepare('INSERT INTO schema_migrations VALUES (?, ?, ?)').run(migrations.length + 1, 'future', first);
   assert.throws(() => applyMigrations(db), /history/);
 });
 

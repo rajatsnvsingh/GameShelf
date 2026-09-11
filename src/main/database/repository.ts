@@ -59,6 +59,25 @@ export class CatalogRepository {
     return this.db.prepare(`SELECT kind, source, local_path AS localPath FROM artwork WHERE game_id = ? ORDER BY kind`).all(gameId) as ArtworkRecord[];
   }
 
+  listScreenshots(gameId: number): { localPath: string; remoteUrl: string }[] {
+    return this.db.prepare(`SELECT s.local_path AS localPath, s.remote_url AS remoteUrl
+      FROM screenshots s JOIN games g ON g.id = s.game_id
+      WHERE g.id = ? AND g.provider_id = 'igdb' AND g.provider_record_id = s.provider_record_id
+      ORDER BY s.position`).all(gameId) as { localPath: string; remoteUrl: string }[];
+  }
+
+  replaceScreenshots(gameId: number, recordId: string, items: readonly { localPath: string; remoteUrl: string }[]): void {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || !/^[1-9]\d*$/.test(recordId) || items.length > 5 ||
+      items.some(item => !/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(item.localPath) ||
+        !/^https:\/\/images\.igdb\.com\/igdb\/image\/upload\/t_1080p\/[a-zA-Z0-9_-]+\.jpg$/.test(item.remoteUrl))) throw new Error('Invalid screenshots.');
+    this.db.transaction(() => {
+      if (!this.db.prepare("SELECT id FROM games WHERE id = ? AND provider_id = 'igdb' AND provider_record_id = ?").get(gameId, recordId)) throw new Error('Screenshot binding changed.');
+      this.db.prepare('DELETE FROM screenshots WHERE game_id = ?').run(gameId);
+      const insert = this.db.prepare('INSERT INTO screenshots VALUES (?, ?, ?, ?, ?)');
+      items.forEach((item, position) => insert.run(gameId, position, recordId, item.localPath, item.remoteUrl));
+    })();
+  }
+
   saveProviderArtwork(gameId: number, kind: 'cover' | 'background', localPath: string, remoteUrl: string): boolean {
     if (!Number.isSafeInteger(gameId) || gameId <= 0 || !['cover', 'background'].includes(kind) ||
       !/^[a-z0-9][a-z0-9._-]{0,127}$/i.test(localPath) || !/^https:\/\//.test(remoteUrl)) throw new Error('Invalid artwork.');
@@ -94,12 +113,24 @@ export class CatalogRepository {
       const result = this.db.prepare(`UPDATE games SET match_status = 'unmatched', binding_source = NULL,
         provider_id = NULL, provider_record_id = NULL, confidence = NULL, provider_metadata = '{}', manual_overrides = '{}' WHERE id = ?`).run(gameId);
       this.db.prepare("DELETE FROM artwork WHERE game_id = ? AND source = 'provider'").run(gameId);
+      this.db.prepare('DELETE FROM screenshots WHERE game_id = ?').run(gameId);
       return result.changes === 1;
     })();
   }
   refreshBoundMatch(gameId: number, providerId: string, recordId: string, details: GameDetails): boolean {
     if (!Number.isSafeInteger(gameId) || gameId <= 0 || details.recordId !== recordId) throw new Error('Invalid match refresh.');
     return this.db.prepare('UPDATE games SET provider_metadata = ? WHERE id = ? AND provider_id = ? AND provider_record_id = ?').run(JSON.stringify(displayMetadata({ ...details })), gameId, providerId, recordId).changes === 1;
+  }
+  mergeMissingBoundMatch(gameId: number, providerId: string, recordId: string, details: GameDetails): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0 || details.recordId !== recordId) throw new Error('Invalid match refresh.');
+    const row = this.db.prepare(`SELECT provider_metadata AS providerMetadata FROM games
+      WHERE id = ? AND provider_id = ? AND provider_record_id = ?`).get(gameId, providerId, recordId) as { providerMetadata: string } | undefined;
+    if (!row) return false;
+    const existing = JSON.parse(row.providerMetadata) as Record<string, unknown>;
+    const merged = { ...displayMetadata({ ...details }), ...existing };
+    if (JSON.stringify(merged) === row.providerMetadata) return false;
+    return this.db.prepare('UPDATE games SET provider_metadata = ? WHERE id = ? AND provider_id = ? AND provider_record_id = ?')
+      .run(JSON.stringify(merged), gameId, providerId, recordId).changes === 1;
   }
   deleteMissing(): number {
     return this.db.prepare('DELETE FROM games WHERE missing = 1').run().changes + this.db.prepare('DELETE FROM collections WHERE missing = 1').run().changes;

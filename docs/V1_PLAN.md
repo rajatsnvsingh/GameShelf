@@ -152,6 +152,12 @@ GameShelf now starts on Home. Library selection, scanning, collection preference
 
 Verification: `npm test` passed all 130 tests; `npm run typecheck` passed with zero errors/warnings; `npm run build` passed and copied the icon into the renderer output. A focused production Electron check used a disposable library and verified Home startup, all three settings tabs, bottom sidebar placement, the allowlisted author URL, library/settings action spacing, search-icon centering, location-action spacing, and Edit-before-Close ordering. Its screenshot was visually inspected. No live-provider check or user library was used.
 
+## Metadata backfill and screenshots (2026-09-10)
+
+Existing IGDB bindings can now fetch up to five locally cached screenshots, displayed only when available in a details-page gallery with enlarge, keyboard navigation, and close controls. Settings > Library also includes **Fetch missing metadata**, an explicit compatibility action that reads existing enabled/configured bindings, fills only fields and assets absent from the local catalog, and preserves bindings, existing provider values, manual metadata, and pasted artwork. Per-game provider failures do not stop later matches.
+
+Verification: `npm test` passed all 135 tests and `npm run typecheck` passed with zero errors or warnings. The production Electron smoke test exercised the Library backfill action. The focused screenshot Electron test verified the five-image limit, hidden empty gallery, keyboard viewer behavior, offline restart/relocation, local-only renderer loads, and the one-image/missing-cache cases. Fixture providers and temporary libraries were used; no live provider request or user catalog was accessed.
+
 ## Product completion criteria
 
 A portable Windows build catalogs the specified folder grammar, survives relocation and restart, browses offline, protects manual work, and opens the correct folder. IGDB and TheGamesDB metadata, supplemental SteamGridDB artwork, manual matching, cached/custom artwork, settings, and explicit maintenance flows work. Other providers are deferred. All applicable checks pass or limitations are clearly recorded. No out-of-scope manager/launcher behavior is included.

@@ -36,7 +36,7 @@ test('IGDB obtains a token in a POST body, reuses it and normalizes search/detai
   assert.deepEqual(await f.provider.search('Game A'), [{ recordId: '1', title: 'Game A', releaseYear: 2000, hasArtwork: true }]);
   const details = await f.provider.getGame('1');
   assert.deepEqual(details, { recordId: '1', title: 'Game A', releaseYear: 2000, hasArtwork: true, description: 'Summary', rating: 88,
-    developers: ['Studio'], publishers: ['Studio'], genres: ['Adventure'], artwork: [
+    developers: ['Studio'], publishers: ['Studio'], genres: ['Adventure'], screenshots: [], artwork: [
       { kind: 'cover', url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/cover123.jpg' },
       { kind: 'background', url: 'https://images.igdb.com/igdb/image/upload/t_1080p/art123.jpg' }
     ] });
@@ -51,9 +51,9 @@ test('IGDB obtains a token in a POST body, reuses it and normalizes search/detai
 
 test('IGDB omits unavailable/invalid optional metadata and never trusts remote image URLs', () => {
   assert.deepEqual(normalizeIgdbGame({ ...game, total_rating: 200, cover: { image_id: '../escape', url: 'https://bad.invalid' } }),
-    { recordId: '1', title: 'Game A', releaseYear: 2000, artwork: [] });
+    { recordId: '1', title: 'Game A', releaseYear: 2000, artwork: [], screenshots: [] });
   assert.ok(!('releaseDate' in normalizeIgdbGame(game)));
-  assert.deepEqual(normalizeIgdbGame({ id: 2, name: 'Undated' }), { recordId: '2', title: 'Undated', artwork: [] });
+  assert.deepEqual(normalizeIgdbGame({ id: 2, name: 'Undated' }), { recordId: '2', title: 'Undated', artwork: [], screenshots: [] });
 });
 
 test('IGDB escapes search strings and rejects unsafe IDs/control characters before networking', async () => {

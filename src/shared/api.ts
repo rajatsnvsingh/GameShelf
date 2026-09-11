@@ -19,6 +19,8 @@ export const REBUILD_CHANNEL = 'maintenance:rebuild';
 export const WIPE_LIBRARY_CHANNEL = 'maintenance:wipe-library';
 export const MATCHING_STATUS_CHANNEL = 'metadata:get-status';
 export const FETCH_ARTWORK_CHANNEL = 'artwork:fetch';
+export const FETCH_SCREENSHOTS_CHANNEL = 'screenshots:fetch';
+export const FETCH_MISSING_METADATA_CHANNEL = 'metadata:fetch-missing';
 export const CONFIRM_ARTWORK_CHANNEL = 'artwork:confirm';
 
 export interface DisplayMetadata {
@@ -54,6 +56,7 @@ export interface CatalogGame {
   metadata: DisplayMetadata;
   coverUrl?: string;
   backgroundUrl?: string;
+  screenshotUrls?: string[];
 }
 
 export interface CatalogCollection {
@@ -95,6 +98,8 @@ export interface GameShelfApi {
   replaceAllRescrape(gameId: number): Promise<OperationResult<CatalogView>>;
   clearMetadata(gameId: number): Promise<OperationResult<CatalogView>>;
   fetchArtwork(gameId: number, steamGridDbId?: string): Promise<OperationResult<ArtworkPreview>>;
+  fetchScreenshots(gameId: number): Promise<OperationResult<CatalogView>>;
+  fetchMissingMetadata(): Promise<OperationResult<CatalogView>>;
   confirmArtwork(gameId: number): Promise<OperationResult<CatalogView>>;
   getSettings(): Promise<OperationResult<SettingsView>>;
   saveSettings(settings: SettingsUpdate): Promise<OperationResult<SettingsView>>;

@@ -73,6 +73,7 @@ export class LibraryService {
       games: repo?.listGames().map(({ id, folderName, relativePath, collectionId, addedAt, lastSeenAt, missing,
         matchStatus, bindingSource, providerId, providerRecordId, providerMetadata, manualOverrides }) =>
         ({ id, folderName: metadataTitle(folderName), displayName: metadataTitle(folderName), relativePath, collectionId, addedAt, lastSeenAt, missing, matchStatus, bindingSource, providerId, providerRecordId,
+          screenshotUrls: repo.listScreenshots(id).map(item => `gameshelf-artwork://local/${item.localPath}`),
           metadata: displayMetadata(providerMetadata, manualOverrides), ...Object.fromEntries(repo.listArtwork(id).map(item =>
             [item.kind === 'cover' ? 'coverUrl' : 'backgroundUrl', `gameshelf-artwork://local/${item.localPath}`])) })) ?? [],
       collections: repo?.listCollections().map(({ id, folderName, displayName, missing }) => ({ id, folderName, displayName, missing })) ?? []
@@ -222,7 +223,11 @@ export class LibraryService {
   }
 
   private async cacheArtwork(gameId: number, title: string, details: GameDetails, selectedProvider: string, providers: readonly ProviderEntry[], repo: CatalogRepository,
-    options: { replaceProvider?: boolean; steamGridDbId?: string } = {}): Promise<number> {
+    options: { replaceProvider?: boolean; steamGridDbId?: string; cacheScreenshots?: boolean; preserveExistingScreenshots?: boolean } = {}): Promise<number> {
+    if (options.cacheScreenshots !== false && selectedProvider === 'igdb' && providers.some(item => item.provider.id === 'igdb' && item.enabled && item.configured)) {
+      try { await this.cacheScreenshots(gameId, details, repo, await this.matchSettings(), options.preserveExistingScreenshots); }
+      catch { /* Optional screenshots cannot undo a saved match or block cover caching. */ }
+    }
     const saved = new Map(repo.listArtwork(gameId).map(item => [item.kind, item.source]));
     const written = new Set<'cover' | 'background'>();
     let downloaded = 0;
@@ -251,6 +256,95 @@ export class LibraryService {
       } catch { /* A failed source leaves earlier cached artwork usable and tries the next provider. */ }
     }
     return downloaded;
+  }
+
+  private async cacheScreenshots(gameId: number, details: GameDetails, repo: CatalogRepository, key: string, preserveExisting = false): Promise<boolean> {
+    if (!details.screenshots) return false;
+    const previous = repo.listScreenshots(gameId);
+    const items: { localPath: string; remoteUrl: string }[] = [];
+    let failed = false;
+    for (const url of [...new Set(details.screenshots.map(item => item.url))].slice(0, 5)) {
+      const cached = previous.find(item => item.remoteUrl === url);
+      if (cached && await this.cachedArtworkExists(cached.localPath)) { items.push(cached); continue; }
+      try {
+        const localPath = await this.artwork.download(gameId, { kind: 'screenshot', url });
+        items.push({ localPath, remoteUrl: url });
+      } catch { failed = true; }
+      await this.verifyMatchContext(key);
+    }
+    // Keep usable cached images when a refresh only partially succeeds.
+    if (failed || preserveExisting) {
+      for (const item of previous) {
+        if (items.length < 5 && !items.some(saved => saved.remoteUrl === item.remoteUrl)) items.push(item);
+      }
+    }
+    await this.verifyMatchContext(key);
+    repo.replaceScreenshots(gameId, details.recordId, items);
+    return !failed;
+  }
+
+  private async cachedArtworkExists(localPath: string): Promise<boolean> {
+    try { return (await stat(join(this.base, 'data', 'artwork', localPath))).isFile(); }
+    catch { return false; }
+  }
+
+  async fetchScreenshots(gameId: number): Promise<OperationResult<CatalogView>> {
+    try {
+      return await this.run(async () => {
+        const { repo, game, key } = await this.matchContext(gameId);
+        if (game.providerId !== 'igdb' || !game.providerRecordId) return { ok: false, message: 'Screenshots require an IGDB match.' };
+        const session = await this.providers();
+        const entry = session.providers.find(item => item.provider.id === 'igdb' && item.enabled && item.configured);
+        if (!entry) return { ok: false, message: 'Enable and configure IGDB to fetch screenshots.' };
+        const details = await entry.provider.getGame(game.providerRecordId);
+        if (!details || details.recordId !== game.providerRecordId) throw new Error();
+        await this.verifyMatchContext(key);
+        const complete = await this.cacheScreenshots(gameId, details, repo, key);
+        const count = repo.listScreenshots(gameId).length;
+        return { ok: true, value: this.view(repo), message: complete
+          ? (count ? `${count} screenshots cached.` : 'No screenshots are available from IGDB.')
+          : 'Some screenshots could not be fetched. Existing cached screenshots were preserved.' };
+      });
+    } catch { return { ok: false, message: 'Could not fetch screenshots. Existing cached screenshots were preserved.' }; }
+  }
+
+  async fetchMissingMetadata(): Promise<OperationResult<CatalogView>> {
+    try {
+      return await this.run(async () => {
+        const settings = await this.config.getLibrarySettings();
+        const repo = settings ? await this.repositoryFor(settings) : null;
+        if (!repo) return { ok: false, message: 'There is no catalog to update.' };
+        const session = await this.providers();
+        const key = await this.matchSettings();
+        const games = repo.listGames().filter(game => game.matchStatus === 'matched' && game.providerId && game.providerRecordId);
+        let fetched = 0;
+        let unavailable = 0;
+        let failed = 0;
+        for (const game of games) {
+          const entry = session.providers.find(item => item.provider.id === game.providerId && item.enabled && item.configured && item.provider.capabilities.metadata !== false);
+          if (!entry) { unavailable++; continue; }
+          try {
+            const details = await entry.provider.getGame(game.providerRecordId!);
+            if (!details || details.recordId !== game.providerRecordId) throw new Error('Invalid details.');
+            await this.verifyMatchContext(key);
+            repo.mergeMissingBoundMatch(game.id, game.providerId!, game.providerRecordId!, details);
+            const artwork = repo.listArtwork(game.id);
+            const needsArtwork = !artwork.some(item => item.kind === 'cover') || !artwork.some(item => item.kind === 'background');
+            const needsScreenshots = game.providerId === 'igdb' && repo.listScreenshots(game.id).length < 5;
+            if (needsArtwork || needsScreenshots) {
+              await this.cacheArtwork(game.id, metadataTitle(game.folderName), details, game.providerId!, session.providers, repo, { cacheScreenshots: needsScreenshots, preserveExistingScreenshots: true });
+            }
+            fetched++;
+          } catch { failed++; }
+        }
+        const notices = [
+          `Fetched missing data for ${fetched} of ${games.length} matched game${games.length === 1 ? '' : 's'}.`,
+          unavailable ? `${unavailable} skipped because its provider is disabled or not configured.` : '',
+          failed ? `${failed} provider request${failed === 1 ? '' : 's'} failed; existing data was preserved.` : ''
+        ].filter(Boolean);
+        return { ok: true, value: this.view(repo), message: notices.join(' ') };
+      });
+    } catch { return { ok: false, message: 'Could not fetch missing metadata. Existing catalog data was preserved.' }; }
   }
 
   private async stageArtwork(gameId: number, title: string, details: GameDetails, selectedProvider: string, providers: readonly ProviderEntry[], steamGridDbId?: string): Promise<StagedArtwork[]> {

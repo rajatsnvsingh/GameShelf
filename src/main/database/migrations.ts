@@ -52,6 +52,19 @@ export const migrations: readonly Migration[] = [{
       PRIMARY KEY (game_id, kind)
     ) STRICT;
   `
+}, {
+  version: 3,
+  name: 'screenshot-gallery',
+  sql: `
+    CREATE TABLE screenshots (
+      game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 4),
+      provider_record_id TEXT NOT NULL,
+      local_path TEXT NOT NULL,
+      remote_url TEXT NOT NULL,
+      PRIMARY KEY (game_id, position)
+    ) STRICT;
+  `
 }];
 
 export function applyMigrations(db: Database.Database, steps: readonly Migration[] = migrations): void {

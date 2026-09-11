@@ -12,6 +12,8 @@ import { validateSearchRequest, validateSelectionRequest } from './ipc';
 import { SAVE_OVERRIDES_CHANNEL, PASTE_ARTWORK_CHANNEL, RESCRAPE_CHANNEL, CLEAR_METADATA_CHANNEL } from '../shared/api';
 import { SETTINGS_CHANNEL, SAVE_SETTINGS_CHANNEL } from '../shared/api';
 import { DELETE_MISSING_CHANNEL, REBUILD_CHANNEL, WIPE_LIBRARY_CHANNEL, MATCHING_STATUS_CHANNEL, FETCH_ARTWORK_CHANNEL, CONFIRM_ARTWORK_CHANNEL } from '../shared/api';
+import { FETCH_SCREENSHOTS_CHANNEL } from '../shared/api';
+import { FETCH_MISSING_METADATA_CHANNEL } from '../shared/api';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const rendererFile = join(directory, '../renderer/index.html');
@@ -119,6 +121,8 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(RESCRAPE_CHANNEL, (event, ...args: unknown[]) => library.replaceAllRescrape(validateGameIdRequest(trusted(event), args)));
     ipcMain.handle(CLEAR_METADATA_CHANNEL, (event, ...args: unknown[]) => library.clearMetadata(validateGameIdRequest(trusted(event), args)));
     ipcMain.handle(FETCH_ARTWORK_CHANNEL, (event, ...args: unknown[]) => library.fetchArtwork(...validateArtworkRequest(trusted(event), args)));
+    ipcMain.handle(FETCH_SCREENSHOTS_CHANNEL, (event, ...args: unknown[]) => library.fetchScreenshots(validateGameIdRequest(trusted(event), args)));
+    ipcMain.handle(FETCH_MISSING_METADATA_CHANNEL, (event, ...args: unknown[]) => { validate(event, args); return library.fetchMissingMetadata(); });
     ipcMain.handle(CONFIRM_ARTWORK_CHANNEL, (event, ...args: unknown[]) => library.confirmArtwork(validateGameIdRequest(trusted(event), args)));
     ipcMain.handle(SETTINGS_CHANNEL, (event, ...args: unknown[]) => { validate(event, args); return config.getSettings().then(value => ({ ok: true as const, value })); });
     ipcMain.handle(SAVE_SETTINGS_CHANNEL, (event, ...args: unknown[]) => { if (args.length !== 1 || !args[0] || typeof args[0] !== 'object' || Array.isArray(args[0])) throw new Error('Invalid settings'); validateGameIdRequest(trusted(event), [1]); return config.saveSettings(args[0] as import('../shared/api').SettingsUpdate).then(value => ({ ok: true as const, value })).catch(() => ({ ok: false as const, message: 'Could not save settings.' })); });

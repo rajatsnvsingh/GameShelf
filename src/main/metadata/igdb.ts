@@ -52,6 +52,15 @@ export function normalizeIgdbGame(value: unknown): GameDetails {
   if (item.cover != null) addImage(row(item.cover), 'cover', 'cover_big');
   for (const image of list(item.artworks).slice(0, 5)) addImage(image, 'background', '1080p');
   details.artwork = artwork;
+  // Optional media must not make otherwise usable metadata fail normalization.
+  if (item.screenshots == null) details.screenshots = [];
+  if (Array.isArray(item.screenshots)) {
+    const ids = item.screenshots.flatMap(image => image && typeof image === 'object' &&
+      typeof image.image_id === 'string' && /^[a-zA-Z0-9_-]+$/.test(image.image_id) ? [image.image_id as string] : []);
+    details.screenshots = [...new Set(ids)].slice(0, 5).map(id => ({
+      url: `https://images.igdb.com/igdb/image/upload/t_1080p/${id}.jpg`
+    }));
+  }
   return details;
 }
 
@@ -176,7 +185,7 @@ export class IgdbProvider implements MetadataProvider {
   async getGame(recordId: string): Promise<GameDetails | null> {
     if (!/^[1-9]\d*$/.test(recordId) || !Number.isSafeInteger(Number(recordId))) throw new IgdbError('invalid-record-id');
     return this.operation(async () => {
-      const result = await this.games(`fields name,first_release_date,summary,total_rating,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,cover.image_id,artworks.image_id; where id = ${recordId}; limit 1;`);
+      const result = await this.games(`fields name,first_release_date,summary,total_rating,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,cover.image_id,artworks.image_id,screenshots.image_id; where id = ${recordId}; limit 1;`);
       if (!result.length) return null;
       if (result.length !== 1) throw new IgdbError('invalid-response');
       const details = normalizeIgdbGame(result[0]);

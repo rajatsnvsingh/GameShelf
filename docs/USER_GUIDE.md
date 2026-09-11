@@ -63,6 +63,8 @@ Select a game card to see its details. Missing descriptions, dates, or artwork m
 
 GameShelf always opens on **Home**. In **Settings > Library**, turn off **Show collection games in main library** if you prefer to browse those games through their collections. Title search can still find them. **General** contains the default sort, **Library** contains folder, scan, collection, and maintenance controls, and **Providers** contains matching and credential options. Select **Save settings** after changing preferences. Search terms and your current page are temporary.
 
+If a later GameShelf version supports additional provider data, select **Settings > Library > Fetch missing metadata**. It checks each saved match using its existing enabled provider and fills only missing provider data, artwork, and IGDB screenshots. It does not rematch games, replace existing provider values, or overwrite manual text and pasted artwork. A provider failure leaves that game unchanged while the remaining matches continue.
+
 ### Open a game's folder
 
 For a game stored as a file, select **Open Container Folder** to open its containing folder in Explorer.
@@ -128,6 +130,7 @@ Destructive maintenance actions ask for confirmation. These operations affect th
 | Action | Effect |
 | --- | --- |
 | **Settings > Library > Scan library** | Updates discoveries and missing status, preserving existing matches and manual work. Use this for routine changes. |
+| **Settings > Library > Fetch missing metadata** | Explicitly backfills fields and missing assets newly supported by GameShelf for existing matches. It preserves bindings, existing metadata, and manual work. |
 | **Edit > Clear all metadata** | Clears that game's provider match, metadata, manual text, and provider artwork associations. Keeps pasted artwork and returns the game to Needs Matching. |
 | **Replace all manual work** in the manual editor | Replaces that game's manual metadata and artwork using its current provider record. If retrieval fails, existing work is preserved. |
 | **Settings > Library > Remove missing records** | Deletes all catalog records currently marked missing. This cannot be undone through the app. |

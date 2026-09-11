@@ -86,6 +86,8 @@ screenshotCapture: try {
       'replaceAllRescrape',
       'clearMetadata',
       'fetchArtwork',
+      'fetchScreenshots',
+      'fetchMissingMetadata',
       'confirmArtwork',
       'getSettings',
       'saveSettings',
@@ -147,6 +149,8 @@ screenshotCapture: try {
     await page.getByRole('button', { name: 'Scan library', exact: true }).click();
     await page.waitForTimeout(1_000);
     await page.getByText(/Scan complete:/).waitFor();
+    await page.getByRole('button', { name: 'Fetch missing metadata', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Fetched missing data for 2 of 2 matched games.' }).waitFor();
     const firstCatalog = await page.evaluate(() => window.gameShelf.getCatalog());
     assert.equal(firstCatalog.ok, true);
     assert.equal(firstCatalog.value.games.length, 3);
