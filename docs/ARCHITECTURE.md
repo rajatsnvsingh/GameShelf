@@ -80,12 +80,12 @@ The scanner skips links (including junctions) and special entries at both levels
 
 Use SQLite with ordered, transactional migrations recorded in `schema_migrations`. `better-sqlite3` is preferred pending packaged native-module validation. Keep the schema small for approximately 50–100 games:
 
-| Entity | Core data |
-| --- | --- |
-| Game | Stable ID, unique normalized relative path, literal folder name, optional collection ID, added/last-seen timestamps, missing flag, match status, provider/record binding and confidence, provider metadata, manual overrides |
-| Collection | Stable ID, unique normalized relative path, folder/display names, presence state |
-| Artwork | Game ID, cover/background kind, provider/manual source, relative local path, optional remote provenance |
-| Migration | Applied schema version/history |
+| Entity     | Core data                                                                                                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Game       | Stable ID, unique normalized relative path, literal folder name, optional collection ID, added/last-seen timestamps, missing flag, match status, provider/record binding and confidence, provider metadata, manual overrides |
+| Collection | Stable ID, unique normalized relative path, folder/display names, presence state                                                                                                                                             |
+| Artwork    | Game ID, cover/background kind, provider/manual source, relative local path, optional remote provenance                                                                                                                      |
+| Migration  | Applied schema version/history                                                                                                                                                                                               |
 
 Use columns for title, release date/year, collection, and added date as needed for queries; retain optional/provider-specific metadata in JSON. Keep manual overrides separate from provider values and apply them consistently to display, search, filtering, and sorting. Missing metadata is null/absent, not fabricated. A deliberate manual clearing must be distinguishable from no override.
 

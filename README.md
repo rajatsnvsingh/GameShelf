@@ -1,13 +1,13 @@
 <div align="center">
 
-![GameShelf — Your collection, on display](docs/assets/banner.svg)
+<img src="src/renderer/public/app-icon.png" alt="GameShelf logo" width="160">
 
 # GameShelf
 
 **Turn a drive full of game folders into a library worth browsing.**
 
 A Windows desktop catalog with cover art, collections, and offline browsing.
-Vibe coded with a small scope and a visible trail of decisions and tests.
+Built with a small scope, local-first storage, and documented decisions and tests.
 
 [User guide](docs/USER_GUIDE.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/V1_PLAN.md)
 
@@ -27,11 +27,13 @@ The product is a catalog for roughly 50–100 games, with one library root. Game
 
 ## Screenshots
 
-The screens below are captured from the automated Electron fixture. They show only temporary sample folders and fake metadata.
+The screens below show GameShelf browsing a real library.
 
 ![GameShelf Home with collections and decade groups](docs/assets/catalog-home.png)
 
 ![GameShelf collection view with game details](docs/assets/game-details.png)
+
+![GameShelf game details screenshot viewer](docs/assets/game-screenshot.png)
 
 ## Try the MVP
 
@@ -48,9 +50,9 @@ Choose **Choose library folder**, then **Scan library**. No provider account is 
 
 > **Current MVP limitation:** the details button is labeled **Install**. For file entries, use **Open Container Folder** to browse safely in Explorer. Install can open ZIP/RAR files through Windows associations and can execute an EXE; this conflicts with the intended folder-only behavior and remains a [known issue](docs/DEVELOPMENT.md#known-limitations).
 
-## Built through vibe coding
+## Project approach
 
-GameShelf is a vibe-coded project with explicit product boundaries: a focused desktop catalog, local storage, and optional enrichment. The repository keeps the reasoning alongside the implementation so you can explore how the project took shape.
+GameShelf is a focused desktop catalog with local storage and optional metadata enrichment. The repository keeps decisions, architecture, verification, and contribution guidance alongside the implementation.
 
 The [decision ledger](docs/DECISIONS.md) records the tradeoffs. The [milestone log](docs/V1_PLAN.md) records what was implemented and which checks ran. [AGENTS.md](AGENTS.md) defines the guardrails for future work. Contributions should keep that same small, reviewable scope.
 
@@ -107,13 +109,13 @@ Discovery and enrichment are separate: provider failure cannot undo a completed 
 
 ## Explore the project
 
-| Start here | What you will find |
-| --- | --- |
-| [User guide](docs/USER_GUIDE.md) | Setup, browsing, matching, artwork, backups, and troubleshooting |
-| [Development](docs/DEVELOPMENT.md) | Commands, verification, source layout, and known limitations |
-| [Architecture](docs/ARCHITECTURE.md) | Process boundaries and domain contracts |
-| [Decisions](docs/DECISIONS.md) | Scope and implementation choices |
-| [Roadmap and verification](docs/V1_PLAN.md) | Completed MVP milestones and remaining delivery work |
-| [Contributing](CONTRIBUTING.md) | Reporting bugs and making focused changes |
+| Start here                                  | What you will find                                               |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| [User guide](docs/USER_GUIDE.md)            | Setup, browsing, matching, artwork, backups, and troubleshooting |
+| [Development](docs/DEVELOPMENT.md)          | Commands, verification, source layout, and known limitations     |
+| [Architecture](docs/ARCHITECTURE.md)        | Process boundaries and domain contracts                          |
+| [Decisions](docs/DECISIONS.md)              | Scope and implementation choices                                 |
+| [Roadmap and verification](docs/V1_PLAN.md) | Completed MVP milestones and remaining delivery work             |
+| [Contributing](CONTRIBUTING.md)             | Reporting bugs and making focused changes                        |
 
 Visual direction takes inspiration from Playnite. Optional metadata and artwork come from IGDB, TheGamesDB, and SteamGridDB; GameShelf is an independent project.

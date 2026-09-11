@@ -1,0 +1,423 @@
+/* Styles the selected-game details page and its responsive content layout. */
+.details {
+  position: relative;
+  padding: 20px;
+  border: 1px solid #394154;
+  border-radius: 10px;
+  background: #202633;
+}
+.details h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.details h3 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.details p {
+  color: #bcc5d5;
+  line-height: 1.5;
+}
+.muted {
+  font-size: 13px;
+  color: #bcc5d5;
+}
+.details button {
+  padding: 9px 12px;
+  border: 1px solid #566380;
+  border-radius: 6px;
+  background: #293246;
+  color: #edf0f6;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.details button:hover {
+  background: #35446a;
+}
+.details button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.details button:focus-visible {
+  outline: 2px solid #aabaff;
+  outline-offset: 3px;
+}
+.details .primary {
+  background: #435caa;
+  border-color: #788bce;
+}
+.details .danger {
+  background: #7f2e3a;
+  border-color: #d67783;
+  color: #fff;
+}
+.details .danger:hover {
+  background: #983846;
+}
+.details ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.details button {
+  margin-top: 8px;
+}
+.detail-controls {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.detail-controls > button,
+.edit-menu > button {
+  height: 34px;
+  margin: 0;
+}
+.details-close {
+  padding: 0 11px;
+  font-size: 14px;
+}
+.detail-hero {
+  position: relative;
+  margin-bottom: 12px;
+}
+.detail-hero.has-background {
+  min-height: 150px;
+  display: flex;
+  align-items: end;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.detail-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  padding-right: 132px;
+}
+.detail-hero.has-background .detail-heading {
+  padding: 38px 14px 14px;
+  background: linear-gradient(transparent, rgb(10 14 20 / 0.92));
+}
+.detail-hero.has-background h2 {
+  color: #fff;
+  text-shadow: 0 2px 8px #000;
+}
+.detail-heading h2 {
+  margin-right: auto;
+}
+.detail-aside {
+  float: right;
+  width: min(300px, 42%);
+  margin: 0 0 12px 18px;
+}
+.cover {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #566380;
+}
+.collection-link {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  margin: 10px 0 0 !important;
+  padding: 10px 12px;
+  border-color: #677ab4;
+  background: #273451;
+}
+.collection-link small {
+  margin: 0;
+  color: #b8c8ff;
+}
+.collection-link strong {
+  overflow-wrap: anywhere;
+}
+.placeholder {
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: #a5b0c6;
+  font-size: 12px;
+  text-align: center;
+  background: #171b24;
+}
+.background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.58;
+}
+.description {
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.location-actions button {
+  margin: 0;
+}
+.location-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.action-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.install {
+  background: #276a48;
+  border-color: #62ae82;
+  font-weight: 700;
+}
+.install:hover {
+  background: #348158;
+}
+.details dt {
+  color: #a5b0c6;
+  font-size: 12px;
+  margin-top: 14px;
+}
+.details dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.details .path {
+  overflow-wrap: anywhere;
+}
+.matching {
+  border-top: 1px solid #394154;
+  margin-top: 20px;
+  padding-top: 8px;
+}
+.matching h3 {
+  font-size: 15px;
+}
+.match-context {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #4c5b78;
+  border-radius: 7px;
+  background: #171d29;
+}
+.match-context span {
+  color: #bcc5d5;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.matching label {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: 13px;
+}
+.matching input,
+.matching select,
+.matching textarea,
+.artwork-modal input {
+  width: 100%;
+  padding: 8px;
+  background: #171b24;
+  color: #edf0f6;
+  border: 1px solid #566380;
+  border-radius: 4px;
+}
+.matching textarea {
+  min-height: 80px;
+}
+.matching li {
+  margin-top: 12px;
+  border-top: 1px solid #394154;
+  padding-top: 8px;
+}
+.candidate {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #394154;
+  border-radius: 7px;
+  background: #171d29;
+}
+.candidate > div {
+  min-width: 0;
+  flex: 1;
+}
+.candidate .select-match {
+  width: auto;
+  min-width: 0;
+  flex: none;
+  align-self: end;
+  white-space: nowrap;
+}
+.candidate dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  margin: 8px 0 0;
+}
+.candidate dt,
+.candidate dd {
+  margin: 0;
+  font-size: 12px;
+}
+.candidate dt {
+  color: #a5b0c6;
+}
+.edit-menu {
+  position: relative;
+}
+.edit-menu > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.edit-menu > button span {
+  font-size: 18px;
+  line-height: 0.6;
+}
+.edit-menu-items {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  margin-top: 6px;
+  padding: 0;
+  border: 1px solid #566380;
+  border-radius: 7px;
+  background: #202633;
+  box-shadow: 0 10px 30px #0008;
+}
+.edit-menu-items button {
+  width: 100%;
+  margin: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.edit-menu-items button + button {
+  border-top: 1px solid #394154;
+}
+.edit-menu-items button:hover {
+  background: #35446a;
+}
+.edit-menu-items button:first-child {
+  border-radius: 6px 6px 0 0;
+}
+.edit-menu-items button:last-child {
+  border-radius: 0 0 6px 6px;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 0.6);
+}
+.modal {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid #566380;
+  border-radius: 10px;
+  background: #202633;
+  box-shadow: 0 20px 60px #000;
+}
+.modal .matching {
+  margin-top: 0;
+}
+.close {
+  float: right;
+  font-size: 20px;
+  padding: 2px 9px;
+}
+.artwork-modal small {
+  color: #bcc5d5;
+  font-size: 11px;
+}
+.artwork-notice {
+  padding: 10px;
+  border: 1px solid #4c5b78;
+  border-radius: 6px;
+  background: #171d29;
+  font-size: 13px;
+}
+.artwork-preview {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+}
+.artwork-preview section {
+  border: 1px solid #394154;
+  border-radius: 7px;
+  padding: 12px;
+}
+.artwork-preview h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.artwork-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.artwork-comparison > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.artwork-comparison strong {
+  font-size: 12px;
+  color: #bcc5d5;
+}
+.artwork-comparison img,
+.preview-placeholder {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border: 1px solid #566380;
+  border-radius: 5px;
+  background: #171b24;
+}
+.preview-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: #a5b0c6;
+  font-size: 12px;
+  text-align: center;
+}

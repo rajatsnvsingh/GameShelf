@@ -1,0 +1,5 @@
+data/
+node_modules/
+out/
+test-results/
+package-lock.json

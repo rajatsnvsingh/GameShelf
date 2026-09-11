@@ -15,18 +15,20 @@ Initial dependency and Electron runtime downloads require network access. Render
 
 ## Commands and verification
 
-| Command | Purpose |
-| --- | --- |
-| `npm run typecheck` | Check main/preload/shared TypeScript and Svelte renderer types. |
-| `npm test` | Run domain, configuration, scanner, database, provider, artwork, filesystem-fixture, and IPC tests. |
-| `npm run build` | Compile into `out/`. Does not package an executable. |
-| `npm start` | Preview the compiled app after a build. |
-| `npm run test:smoke` | Build and exercise the UI in real Electron. Requires an interactive Windows desktop. |
-| `npm run test:smoke:dev` | Run the Electron workflow against a test-owned loopback Vite server. |
-| `npm run capture:screenshots` | Build and capture README-ready views from the same temporary Electron fixture; it never reads the user's library or credentials. |
-| `npm run test:database:smoke` | Build and exercise compiled SQLite code inside Electron. |
-| `npm run test:igdb:live -- --run` | Optional configured IGDB authentication/search/detail check. |
-| `npm run test:thegamesdb:live -- --run` | Optional configured TheGamesDB search/detail/name-lookup check. |
+| Command                                 | Purpose                                                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                     | Check main/preload/shared TypeScript and Svelte renderer types.                                                                  |
+| `npm run format`                        | Format source, tests, scripts, renderer styles, and documentation with the repository's 80-column Prettier rules.                |
+| `npm run format:check`                  | Verify that the repository follows the Prettier formatting rules without modifying files.                                        |
+| `npm test`                              | Run domain, configuration, scanner, database, provider, artwork, filesystem-fixture, and IPC tests.                              |
+| `npm run build`                         | Compile into `out/`. Does not package an executable.                                                                             |
+| `npm start`                             | Preview the compiled app after a build.                                                                                          |
+| `npm run test:smoke`                    | Build and exercise the UI in real Electron. Requires an interactive Windows desktop.                                             |
+| `npm run test:smoke:dev`                | Run the Electron workflow against a test-owned loopback Vite server.                                                             |
+| `npm run capture:screenshots`           | Build and capture README-ready views from the same temporary Electron fixture; it never reads the user's library or credentials. |
+| `npm run test:database:smoke`           | Build and exercise compiled SQLite code inside Electron.                                                                         |
+| `npm run test:igdb:live -- --run`       | Optional configured IGDB authentication/search/detail check.                                                                     |
+| `npm run test:thegamesdb:live -- --run` | Optional configured TheGamesDB search/detail/name-lookup check.                                                                  |
 
 Automated tests use fixtures and fake provider responses. Electron smoke scripts use temporary app/library folders, an isolated Chromium profile, and fake picker responses. They capture shell targets without opening game locations; no separate Playwright browser download is needed. Screenshots under `test-results/` are ignored and may represent older UI revisions.
 
@@ -38,19 +40,19 @@ Historical results are recorded in [V1_PLAN.md](V1_PLAN.md); they are not a clai
 
 ## Source map
 
-| Path | Responsibility |
-| --- | --- |
-| `src/renderer/src/App.svelte` | Renderer composition plus transient navigation, filtering, and dialog state |
-| `src/renderer/src/components/` | Focused presentation components, beginning with reusable game and collection cards |
-| `src/shared/api.ts`, `src/preload/index.ts` | Typed interface and narrow bridge |
-| `src/main/ipc.ts` | Caller and payload validation |
-| `src/main/config/` | INI persistence, portable base, root validation |
-| `src/main/library/` | Pure scanner, filesystem adapter, workflow orchestration |
-| `src/main/database/` | SQLite schema, migrations, identity, reconciliation |
-| `src/main/metadata/` | Matching resolver and provider adapters |
-| `src/main/artwork/` | Validated local image cache |
-| `src/main/system/` | Stored-path validation for Windows shell actions |
-| `tests/`, `scripts/` | Fixture tests, Electron checks, optional live provider checks |
+| Path                                        | Responsibility                                                                     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/renderer/src/App.svelte`               | Renderer composition plus transient navigation, filtering, and dialog state        |
+| `src/renderer/src/components/`              | Focused presentation components, beginning with reusable game and collection cards |
+| `src/shared/api.ts`, `src/preload/index.ts` | Typed interface and narrow bridge                                                  |
+| `src/main/ipc.ts`                           | Caller and payload validation                                                      |
+| `src/main/config/`                          | INI persistence, portable base, root validation                                    |
+| `src/main/library/`                         | Pure scanner, filesystem adapter, workflow orchestration                           |
+| `src/main/database/`                        | SQLite schema, migrations, identity, reconciliation                                |
+| `src/main/metadata/`                        | Matching resolver and provider adapters                                            |
+| `src/main/artwork/`                         | Validated local image cache                                                        |
+| `src/main/system/`                          | Stored-path validation for Windows shell actions                                   |
+| `tests/`, `scripts/`                        | Fixture tests, Electron checks, optional live provider checks                      |
 
 ## Configuration
 
@@ -74,10 +76,10 @@ Roots containing the app or overlapping its data are rejected, including resolve
 
 ## Repository presentation
 
-The README uses a local decorative SVG banner and GitHub-native Mermaid diagrams. The banner is not a screenshot. No external fonts, image hotlinks, generated data, or provider art are needed to display it.
+The README uses the application's local icon and GitHub-native Mermaid diagrams. No external fonts, image hotlinks, generated data, or provider art are needed to display them.
 
-Suggested GitHub About description: **A vibe-coded Windows game catalog with collections, local artwork, and offline browsing. Built with Electron, Svelte, and TypeScript.**
+Suggested GitHub About description: **A Windows game catalog with collections, local artwork, and offline browsing. Built with Electron, Svelte, and TypeScript.**
 
-Suggested topics: `game-catalog`, `windows`, `electron`, `svelte`, `typescript`, `sqlite`, `offline-first`, `vibe-coding`.
+Suggested topics: `game-catalog`, `windows`, `electron`, `svelte`, `typescript`, `sqlite`, `offline-first`.
 
 These are suggestions for repository settings, not evidence that remote settings were changed. The checkout has no project license file; this documentation pass does not assign a license or advertise one.

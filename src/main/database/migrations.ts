@@ -1,11 +1,13 @@
+/** Defines and applies the ordered SQLite schema changes for catalog data. */
 import type Database from 'better-sqlite3';
 
-export interface Migration { readonly version: number; readonly name: string; readonly sql: string; }
-
-export const migrations: readonly Migration[] = [{
-  version: 1,
-  name: 'initial-catalog',
-  sql: `
+export type { Migration } from './migrations.types';
+import type { Migration } from './migrations.types';
+export const migrations: readonly Migration[] = [
+  {
+    version: 1,
+    name: 'initial-catalog',
+    sql: `
     CREATE TABLE catalog (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       library_root TEXT NOT NULL
@@ -38,11 +40,12 @@ export const migrations: readonly Migration[] = [{
       manual_overrides TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(manual_overrides) AND json_type(manual_overrides) = 'object')
     ) STRICT;
     CREATE INDEX games_collection_id ON games(collection_id);
-  `
-}, {
-  version: 2,
-  name: 'artwork-cache',
-  sql: `
+  `,
+  },
+  {
+    version: 2,
+    name: 'artwork-cache',
+    sql: `
     CREATE TABLE artwork (
       game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
       kind TEXT NOT NULL CHECK (kind IN ('cover', 'background')),
@@ -51,11 +54,12 @@ export const migrations: readonly Migration[] = [{
       remote_url TEXT,
       PRIMARY KEY (game_id, kind)
     ) STRICT;
-  `
-}, {
-  version: 3,
-  name: 'screenshot-gallery',
-  sql: `
+  `,
+  },
+  {
+    version: 3,
+    name: 'screenshot-gallery',
+    sql: `
     CREATE TABLE screenshots (
       game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
       position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 4),
@@ -64,10 +68,14 @@ export const migrations: readonly Migration[] = [{
       remote_url TEXT NOT NULL,
       PRIMARY KEY (game_id, position)
     ) STRICT;
-  `
-}];
+  `,
+  },
+];
 
-export function applyMigrations(db: Database.Database, steps: readonly Migration[] = migrations): void {
+export function applyMigrations(
+  db: Database.Database,
+  steps: readonly Migration[] = migrations
+): void {
   if (steps.some((step, index) => step.version !== index + 1 || !step.name)) {
     throw new Error('Migrations must be ordered and consecutive.');
   }
@@ -77,11 +85,22 @@ export function applyMigrations(db: Database.Database, steps: readonly Migration
       name TEXT NOT NULL,
       applied_at TEXT NOT NULL
     ) STRICT`);
-    const applied = db.prepare('SELECT version, name FROM schema_migrations ORDER BY version').all() as { version: number; name: string }[];
-    if (applied.some((row, index) => row.version !== index + 1 || steps[index]?.name !== row.name)) {
-      throw new Error('Unsupported or inconsistent database migration history.');
+    const applied = db
+      .prepare('SELECT version, name FROM schema_migrations ORDER BY version')
+      .all() as { version: number; name: string }[];
+    if (
+      applied.some(
+        (row, index) =>
+          row.version !== index + 1 || steps[index]?.name !== row.name
+      )
+    ) {
+      throw new Error(
+        'Unsupported or inconsistent database migration history.'
+      );
     }
-    const record = db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)');
+    const record = db.prepare(
+      'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)'
+    );
     for (const step of steps.slice(applied.length)) {
       db.exec(step.sql);
       record.run(step.version, step.name, new Date().toISOString());

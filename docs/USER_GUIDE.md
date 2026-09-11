@@ -51,13 +51,13 @@ Scans happen only when you select **Settings > Library > Scan library**. Opening
 
 ## 3. Browse your shelf
 
-| View | Use it for |
-| --- | --- |
-| **Home** | Browse collections and groups by release decade or genre. Recently added shows games discovered after your first scan; the initial scan and a rebuild start with no recently added items. |
-| **All Games** | Search titles, filter by year, genre, or collection, and sort by title or release date. |
-| **Collections** | Open a collection and browse its members. |
-| **Needs matching** | Select the sidebar count to find entries without a metadata match. A `!` on a game card also marks an unresolved entry. |
-| **Settings** | Use the bottom-of-sidebar link to open General, Library, and Providers tabs. |
+| View               | Use it for                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**           | Browse collections and groups by release decade or genre. Recently added shows games discovered after your first scan; the initial scan and a rebuild start with no recently added items. |
+| **All Games**      | Search titles, filter by year, genre, or collection, and sort by title or release date.                                                                                                   |
+| **Collections**    | Open a collection and browse its members.                                                                                                                                                 |
+| **Needs matching** | Select the sidebar count to find entries without a metadata match. A `!` on a game card also marks an unresolved entry.                                                                   |
+| **Settings**       | Use the bottom-of-sidebar link to open General, Library, and Providers tabs.                                                                                                              |
 
 Select a game card to see its details. Missing descriptions, dates, or artwork mean that information has not been added yet.
 
@@ -75,11 +75,11 @@ The current details button labeled **Install** opens the folder for a folder ent
 
 You can leave every provider disabled and use the catalog with your own titles and images. To enable online matching, open **Settings > Providers** and configure a provider:
 
-| Provider | What it adds | What to enter |
-| --- | --- | --- |
-| **IGDB** | Game details and available artwork | A Twitch application's Client ID and Client Secret, obtained through the [IGDB account setup instructions](https://api-docs.igdb.com/#account-creation). |
-| **TheGamesDB** | An alternative source for details and available artwork | Your TheGamesDB API key; see the [provider's API portal](https://api.thegamesdb.net/). |
-| **SteamGridDB** | Supplemental cover and background artwork for matched games | Your API key from [SteamGridDB preferences](https://www.steamgriddb.com/profile/preferences/api). |
+| Provider        | What it adds                                                | What to enter                                                                                                                                            |
+| --------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **IGDB**        | Game details and available artwork                          | A Twitch application's Client ID and Client Secret, obtained through the [IGDB account setup instructions](https://api-docs.igdb.com/#account-creation). |
+| **TheGamesDB**  | An alternative source for details and available artwork     | Your TheGamesDB API key; see the [provider's API portal](https://api.thegamesdb.net/).                                                                   |
+| **SteamGridDB** | Supplemental cover and background artwork for matched games | Your API key from [SteamGridDB preferences](https://www.steamgriddb.com/profile/preferences/api).                                                        |
 
 1. Enter the credentials for the provider you want and check its enable box.
 2. Make sure **Provider order** includes its name. The default is `igdb,thegamesdb,steamgriddb`; to use only IGDB, enter `igdb`.
@@ -97,7 +97,9 @@ Leave **Matching threshold** at its default initially. **Greedy match** accepts 
 1. Open a game, then choose **Edit > Find metadata**. For an existing match, choose **Edit > Change match**.
 2. For an unresolved game, try **Match automatically**, or edit **Search title** to the name you want to find.
 3. Choose **Search provider**, then **Search candidates**.
-4. Compare the titles, release years, and provider details. Select **Select** beside the correct result.
+4. Compare the titles, release years, platforms, and provider details. Select **Select** beside the correct result.
+
+IGDB candidates and matched details show their release platforms. Automatic matching prefers a PC or Windows candidate when IGDB provides one; **Greedy match** continues to use the provider's original result order.
 
 Searching does not change the game. Selecting a result saves the match after its details have been retrieved. If the request fails, your existing match stays in place. Normal scans preserve chosen matches and manual edits.
 
@@ -127,27 +129,27 @@ When moving the app and games together, preserve their relative folder layout on
 
 Destructive maintenance actions ask for confirmation. These operations affect the catalog, not your game folders or archives.
 
-| Action | Effect |
-| --- | --- |
-| **Settings > Library > Scan library** | Updates discoveries and missing status, preserving existing matches and manual work. Use this for routine changes. |
-| **Settings > Library > Fetch missing metadata** | Explicitly backfills fields and missing assets newly supported by GameShelf for existing matches. It preserves bindings, existing metadata, and manual work. |
-| **Edit > Clear all metadata** | Clears that game's provider match, metadata, manual text, and provider artwork associations. Keeps pasted artwork and returns the game to Needs Matching. |
-| **Replace all manual work** in the manual editor | Replaces that game's manual metadata and artwork using its current provider record. If retrieval fails, existing work is preserved. |
-| **Settings > Library > Remove missing records** | Deletes all catalog records currently marked missing. This cannot be undone through the app. |
-| **Settings > Library > Rebuild catalog** | Replaces the catalog from the selected library, losing matches, manual metadata, and artwork associations. Use this explicitly when switching to a different library. |
-| **Settings > Library > Wipe library** | Deletes catalog records, cached artwork, and logs. Keeps library selection, settings, and provider credentials. |
+| Action                                           | Effect                                                                                                                                                                |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Settings > Library > Scan library**            | Updates discoveries and missing status, preserving existing matches and manual work. Use this for routine changes.                                                    |
+| **Settings > Library > Fetch missing metadata**  | Explicitly backfills fields and missing assets newly supported by GameShelf for existing matches. It preserves bindings, existing metadata, and manual work.          |
+| **Edit > Clear all metadata**                    | Clears that game's provider match, metadata, manual text, and provider artwork associations. Keeps pasted artwork and returns the game to Needs Matching.             |
+| **Replace all manual work** in the manual editor | Replaces that game's manual metadata and artwork using its current provider record. If retrieval fails, existing work is preserved.                                   |
+| **Settings > Library > Remove missing records**  | Deletes all catalog records currently marked missing. This cannot be undone through the app.                                                                          |
+| **Settings > Library > Rebuild catalog**         | Replaces the catalog from the selected library, losing matches, manual metadata, and artwork associations. Use this explicitly when switching to a different library. |
+| **Settings > Library > Wipe library**            | Deletes catalog records, cached artwork, and logs. Keeps library selection, settings, and provider credentials.                                                       |
 
 ## Troubleshooting
 
-| What you see | What to try |
-| --- | --- |
-| Empty library | Check the chosen folder and select **Scan library**. Games nested inside an ordinary game folder are not discovered. |
-| Library unavailable | Reconnect the drive, confirm the folder still exists, and select **Retry**. |
-| Catalog belongs to a previous library | Reconnect the original library, or back up the catalog and explicitly rebuild for the newly selected library. |
-| No metadata matches | Check that a metadata provider is enabled, configured, and listed in Provider order. Try a simpler search title or a different provider. |
-| Wrong match | Use **Edit > Change match** and select the correct candidate. Consider turning off Greedy match. |
-| No artwork | Match the game first, then use **Fetch artwork**, or paste your own image. Providers may not have art for every title. |
-| Provider error | Check credentials and connectivity. If the service is limiting requests, wait before trying again. Local browsing remains available. |
-| Invalid configuration | Close the app and restore a known-good `config.ini` backup, or correct the reported setting. See the [configuration reference](DEVELOPMENT.md#configuration). |
+| What you see                          | What to try                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty library                         | Check the chosen folder and select **Scan library**. Games nested inside an ordinary game folder are not discovered.                                          |
+| Library unavailable                   | Reconnect the drive, confirm the folder still exists, and select **Retry**.                                                                                   |
+| Catalog belongs to a previous library | Reconnect the original library, or back up the catalog and explicitly rebuild for the newly selected library.                                                 |
+| No metadata matches                   | Check that a metadata provider is enabled, configured, and listed in Provider order. Try a simpler search title or a different provider.                      |
+| Wrong match                           | Use **Edit > Change match** and select the correct candidate. Consider turning off Greedy match.                                                              |
+| No artwork                            | Match the game first, then use **Fetch artwork**, or paste your own image. Providers may not have art for every title.                                        |
+| Provider error                        | Check credentials and connectivity. If the service is limiting requests, wait before trying again. Local browsing remains available.                          |
+| Invalid configuration                 | Close the app and restore a known-good `config.ini` backup, or correct the reported setting. See the [configuration reference](DEVELOPMENT.md#configuration). |
 
 For a reproducible problem, use the repository's bug report template. Include the visible error and steps to reproduce, but omit credentials and private paths.

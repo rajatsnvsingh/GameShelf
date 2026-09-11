@@ -1,6 +1,6 @@
 # Contributing to GameShelf
 
-Thanks for taking a look. GameShelf is a focused, vibe-coded Windows catalog. Useful contributions include clearer documentation, reproducible bug reports, and small fixes backed by relevant checks.
+Thanks for taking a look. GameShelf is a focused Windows catalog. Useful contributions include clearer documentation, reproducible bug reports, and small fixes backed by relevant checks.
 
 ## Report a problem
 
