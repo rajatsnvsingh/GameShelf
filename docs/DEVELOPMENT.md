@@ -23,6 +23,7 @@ Initial dependency and Electron runtime downloads require network access. Render
 | `npm start` | Preview the compiled app after a build. |
 | `npm run test:smoke` | Build and exercise the UI in real Electron. Requires an interactive Windows desktop. |
 | `npm run test:smoke:dev` | Run the Electron workflow against a test-owned loopback Vite server. |
+| `npm run capture:screenshots` | Build and capture README-ready views from the same temporary Electron fixture; it never reads the user's library or credentials. |
 | `npm run test:database:smoke` | Build and exercise compiled SQLite code inside Electron. |
 | `npm run test:igdb:live -- --run` | Optional configured IGDB authentication/search/detail check. |
 | `npm run test:thegamesdb:live -- --run` | Optional configured TheGamesDB search/detail/name-lookup check. |
@@ -39,7 +40,8 @@ Historical results are recorded in [V1_PLAN.md](V1_PLAN.md); they are not a clai
 
 | Path | Responsibility |
 | --- | --- |
-| `src/renderer/src/App.svelte` | Presentation and transient navigation/filter/dialog state |
+| `src/renderer/src/App.svelte` | Renderer composition plus transient navigation, filtering, and dialog state |
+| `src/renderer/src/components/` | Focused presentation components, beginning with reusable game and collection cards |
 | `src/shared/api.ts`, `src/preload/index.ts` | Typed interface and narrow bridge |
 | `src/main/ipc.ts` | Caller and payload validation |
 | `src/main/config/` | INI persistence, portable base, root validation |

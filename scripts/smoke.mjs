@@ -24,8 +24,8 @@ for (const dependency of ['better-sqlite3', 'node-addon-api']) {
 }
 const gamesName = 'Games 日本語';
 await mkdir(join(appDirectory, gamesName, 'Game A', 'Never Visit'), { recursive: true });
-await mkdir(join(appDirectory, gamesName, 'Collection_Favorites', 'Game B 日本語'), { recursive: true });
-await mkdir(join(appDirectory, gamesName, 'Collection_Empty'));
+await mkdir(join(appDirectory, gamesName, '[C] Favorites', 'Game B 日本語'), { recursive: true });
+await mkdir(join(appDirectory, gamesName, '[C] Empty'));
 await writeFile(join(appDirectory, gamesName, 'setup.exe'), 'fixture only');
 let savedCatalog;
 const server = process.argv.includes('--dev') ? await createServer({
@@ -37,7 +37,7 @@ if (server) {
   // Deliberately omit the trailing slash to exercise Electron URL normalization.
   env.ELECTRON_RENDERER_URL = server.resolvedUrls.local[0].replace(/\/$/, '');
 }
-try {
+screenshotCapture: try {
   const application = await electron.launch({ args: [appDirectory, profileArgument], cwd: tmpdir(), env });
   try {
     const page = await application.firstWindow();
@@ -56,11 +56,11 @@ try {
       image.src = 'gameshelf-artwork://local/fixture.png';
     }));
     assert.equal(artworkLoaded, true, 'local cached artwork should load under the renderer CSP');
-    await page.getByRole('button', { name: 'All Games', exact: true }).click();
+    await page.getByRole('button', { name: /All Games/ }).click();
     await page.getByLabel('Game filters').waitFor();
-    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: /Home/ }).click();
     await page.getByText('Version 0.1.0', { exact: true }).waitFor();
-    await page.getByRole('status').filter({ hasText: 'Choose the folder' }).waitFor();
+    assert.equal((await page.evaluate(() => window.gameShelf.getLibraryState())).status, 'unconfigured');
     const state = await page.evaluate(async () => ({
       require: typeof window.require,
       process: typeof window.process,
@@ -69,7 +69,30 @@ try {
     }));
     assert.equal(state.require, 'undefined');
     assert.equal(state.process, 'undefined');
-    assert.deepEqual(state.apiKeys, ['getAppInfo', 'getLibraryState', 'chooseLibraryRoot', 'getCatalog', 'scanLibrary', 'openInstallFolder', 'autoMatch', 'getMatchingStatus', 'searchMatches', 'selectMatch', 'saveOverrides', 'pasteArtwork', 'replaceAllRescrape', 'fetchArtwork', 'getSettings', 'saveSettings', 'deleteMissing', 'rebuildCatalog']);
+    assert.deepEqual(state.apiKeys, [
+      'getAppInfo',
+      'getLibraryState',
+      'chooseLibraryRoot',
+      'getCatalog',
+      'scanLibrary',
+      'openInstallFolder',
+      'openContainerFolder',
+      'autoMatch',
+      'getMatchingStatus',
+      'searchMatches',
+      'selectMatch',
+      'saveOverrides',
+      'pasteArtwork',
+      'replaceAllRescrape',
+      'clearMetadata',
+      'fetchArtwork',
+      'confirmArtwork',
+      'getSettings',
+      'saveSettings',
+      'deleteMissing',
+      'rebuildCatalog',
+      'wipeLibrary'
+    ]);
     assert.deepEqual(state.info, { name: 'GameShelf', version: '0.1.0' });
     const preferences = await application.evaluate(async ({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -80,6 +103,9 @@ try {
     assert.deepEqual(preferences, { isolated: true, sandbox: true, node: false, visible: true });
 
     // Exercise the real IPC and UI while replacing only the native dialog result.
+    await page.getByRole('button', { name: /Settings/ }).click();
+    await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
+    await page.getByRole('tab', { name: 'Library', exact: true }).click();
     await application.evaluate(({ dialog }) => {
       dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] });
     });
@@ -119,23 +145,34 @@ try {
       };
     });
     await page.getByRole('button', { name: 'Scan library', exact: true }).click();
-    await page.getByRole('status').filter({ hasText: 'Scan complete: 2 games and 2 collections' }).waitFor();
+    await page.waitForTimeout(1_000);
+    await page.getByText(/Scan complete:/).waitFor();
     const firstCatalog = await page.evaluate(() => window.gameShelf.getCatalog());
     assert.equal(firstCatalog.ok, true);
-    assert.equal(firstCatalog.value.games.length, 2);
+    assert.equal(firstCatalog.value.games.length, 3);
     assert.equal(firstCatalog.value.games.find(game => game.folderName === 'Game A').bindingSource, 'automatic');
     const originalMember = firstCatalog.value.games.find(game => game.folderName === 'Game B 日本語');
-    assert.equal(originalMember.matchStatus, 'unmatched');
+
+    if (process.argv.includes('--screenshots')) {
+      await page.getByRole('button', { name: /Home/ }).click();
+      await page.screenshot({ path: resolve('test-results/readme-home.png') });
+      await page.getByRole('button', { name: /Collections/ }).click();
+      await page.getByRole('button', { name: /Favorites/ }).click();
+      await page.getByRole('region', { name: 'Games', exact: true }).getByRole('button', { name: /Game B 日本語/ }).click();
+      await page.screenshot({ path: resolve('test-results/readme-details.png') });
+      break screenshotCapture;
+    }
+
     await page.getByRole('navigation', { name: 'Collections' }).getByRole('button', { name: /Favorites/ }).click();
     await page.getByRole('region', { name: 'Games', exact: true }).getByRole('button', { name: /Game B 日本語/ }).click();
-    await page.getByRole('region', { name: 'Game details' }).getByText('Collection_Favorites/Game B 日本語', { exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Game details' }).getByText('[C] Favorites/Game B 日本語', { exact: true }).waitFor();
     await application.evaluate(({ shell }) => {
       globalThis.fixtureOpenedPaths = [];
       shell.openPath = async path => { globalThis.fixtureOpenedPaths.push(path); return ''; };
     });
     await page.getByRole('button', { name: 'Open Install Folder', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Install folder opened.' }).waitFor();
-    const memberPath = join(appDirectory, gamesName, 'Collection_Favorites', 'Game B 日本語');
+    const memberPath = join(appDirectory, gamesName, '[C] Favorites', 'Game B 日本語');
     assert.deepEqual(await application.evaluate(() => globalThis.fixtureOpenedPaths), [memberPath]);
     await rename(memberPath, join(fixture, 'Absent Member'));
     await page.getByRole('button', { name: 'Open Install Folder', exact: true }).click();

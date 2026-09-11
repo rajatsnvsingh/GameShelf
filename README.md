@@ -25,6 +25,14 @@ GameShelf gives your local game collection a visual home. Choose a folder, scan 
 
 The product is a catalog for roughly 50–100 games, with one library root. Game launching, installation, extraction, playtime tracking, cloud sync, telemetry, and automatic updates are outside its intended scope.
 
+## Screenshots
+
+The screens below are captured from the automated Electron fixture. They show only temporary sample folders and fake metadata.
+
+![GameShelf Home with collections and decade groups](docs/assets/catalog-home.png)
+
+![GameShelf collection view with game details](docs/assets/game-details.png)
+
 ## Try the MVP
 
 **Status: MVP implemented; portable distribution and final hardening pending.** This checkout runs from source on Windows. It does not yet include a packaging command or a verified standalone executable.

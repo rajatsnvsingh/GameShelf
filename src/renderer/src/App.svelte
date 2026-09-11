@@ -1,19 +1,46 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { ArtworkPreview, CatalogView, LibraryState, MatchCandidate, SettingsView, MatchingStatus } from '../../shared/api';
+  import CollectionCard from './components/CollectionCard.svelte';
+  import GameCard from './components/GameCard.svelte';
+  import type {
+    ArtworkPreview,
+    CatalogGame,
+    CatalogView,
+    LibraryState,
+    MatchCandidate,
+    MatchingStatus,
+    SettingsView
+  } from '../../shared/api';
 
+  type Page = 'home' | 'games' | 'collections' | 'settings';
+  type SettingsTab = 'general' | 'library' | 'providers';
+  type DetailModal = 'matching' | 'manual' | 'artwork' | null;
+  type CollectionBack = {
+    page: Page;
+    collectionId: number | null;
+    needsMatching: boolean;
+  };
+
+  // Application data loaded from the privileged preload bridge.
   let version = $state('');
   let library = $state<LibraryState>();
   let catalog = $state<CatalogView>({ games: [], collections: [] });
+  let settings = $state<SettingsView>();
+  let matchingStatus = $state<MatchingStatus>({
+    phase: 'idle',
+    attempted: 0,
+    total: 0,
+    matched: 0
+  });
+
+  // Transient view state. None of this state is persisted with the catalog.
   let busy = $state(false);
   let notice = $state('');
+  let page = $state<Page>('home');
+  let settingsTab = $state<SettingsTab>('general');
   let collectionId = $state<number | null>(null);
   let selectedId = $state<number | null>(null);
   let needsMatching = $state(false);
-  let page = $state<'home' | 'games' | 'collections' | 'settings'>('home');
-  let settingsTab = $state<'general' | 'library' | 'providers'>('general');
-  let settings = $state<SettingsView>();
-  let matchingStatus = $state<MatchingStatus>({ phase: 'idle', attempted: 0, total: 0, matched: 0 });
   let titleFilter = $state('');
   let yearFilter = $state('');
   let collectionFilter = $state('all');
@@ -27,67 +54,137 @@
   let artworkPreview = $state<ArtworkPreview | null>(null);
   let candidates = $state<MatchCandidate[]>([]);
   let candidateGameId = $state<number | null>(null);
-  let detailModal = $state<'matching' | 'manual' | 'artwork' | null>(null);
+  let detailModal = $state<DetailModal>(null);
   let detailMenu = $state(false);
-  let collectionBack = $state<{ page: 'home' | 'games' | 'collections' | 'settings'; collectionId: number | null; needsMatching: boolean } | null>(null);
+
+  let collectionBack = $state<CollectionBack | null>(null);
+
+  const gameTitle = (game: CatalogGame) => game.metadata.title || game.displayName;
+  const resetCandidateSearch = () => {
+    candidates = [];
+    candidateGameId = null;
+  };
+  const isMatchingGame = (game: CatalogGame) => !needsMatching || game.matchStatus === 'unmatched';
+  const matchesCollectionFilter = (game: CatalogGame) => {
+    if (collectionId !== null && game.collectionId !== collectionId) return false;
+    if (collectionFilter === 'all') return true;
+    if (collectionFilter === 'none') return game.collectionId === null;
+    return game.collectionId === Number(collectionFilter);
+  };
+  const matchesMetadataFilters = (game: CatalogGame) => {
+    const title = gameTitle(game).toLocaleLowerCase();
+
+    return (
+      (!yearFilter || String(game.metadata.releaseYear ?? '') === yearFilter) &&
+      (!genreFilter || game.metadata.genres?.includes(genreFilter)) &&
+      (!titleFilter || title.includes(titleFilter.toLocaleLowerCase()))
+    );
+  };
+  const sortByTitle = (left: CatalogGame, right: CatalogGame) => gameTitle(left).localeCompare(gameTitle(right));
+  const sortGames = (items: CatalogGame[]) => items.sort((left, right) => {
+    if (sort === 'title') return sortByTitle(left, right);
+
+    return (right.metadata.releaseYear ?? -1) - (left.metadata.releaseYear ?? -1) || sortByTitle(left, right);
+  });
+
   const collection = $derived(catalog.collections.find(item => item.id === collectionId));
-  const games = $derived(catalog.games.filter(game => (!needsMatching || game.matchStatus === 'unmatched') && (collectionId === null || game.collectionId === collectionId) && (collectionFilter === 'all' || collectionFilter === 'none' ? collectionFilter === 'all' || game.collectionId === null : game.collectionId === Number(collectionFilter)) && (!yearFilter || String(game.metadata.releaseYear ?? '') === yearFilter) && (!genreFilter || game.metadata.genres?.includes(genreFilter)) && (!titleFilter || (game.metadata.title || game.displayName).toLocaleLowerCase().includes(titleFilter.toLocaleLowerCase()))).sort((a, b) => sort === 'releaseDate' ? (b.metadata.releaseYear ?? -1) - (a.metadata.releaseYear ?? -1) || (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName) : (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName)));
-  const years = $derived([...new Set(catalog.games.flatMap(game => game.metadata.releaseYear ? [game.metadata.releaseYear] : []))].sort((a, b) => b - a));
-  const genres = $derived([...new Set(catalog.games.flatMap(game => game.metadata.genres ?? []))].sort((a, b) => a.localeCompare(b)));
+  const games = $derived(sortGames(catalog.games.filter(game =>
+    isMatchingGame(game) && matchesCollectionFilter(game) && matchesMetadataFilters(game)
+  )));
+  const years = $derived(
+    [...new Set(catalog.games.flatMap(game => game.metadata.releaseYear ? [game.metadata.releaseYear] : []))]
+      .sort((left, right) => right - left)
+  );
+  const genres = $derived(
+    [...new Set(catalog.games.flatMap(game => game.metadata.genres ?? []))]
+      .sort((left, right) => left.localeCompare(right))
+  );
   const selected = $derived(catalog.games.find(game => game.id === selectedId));
-  const selectedCollection = $derived(selected?.collectionId === null || selected?.collectionId === undefined ? undefined : catalog.collections.find(item => item.id === selected.collectionId));
+  const selectedCollection = $derived(
+    selected?.collectionId === null || selected?.collectionId === undefined
+      ? undefined
+      : catalog.collections.find(item => item.id === selected.collectionId)
+  );
   const selectedIsSingleFile = $derived(Boolean(selected && /\.(zip|rar|iso|exe)$/iu.test(selected.relativePath)));
-  const searchableProviders = $derived((settings?.providerOrder ?? []).filter(id => id !== 'steamgriddb' && settings?.providers[id]?.enabled && settings.providers[id]?.configured));
+  const searchableProviders = $derived(
+    (settings?.providerOrder ?? []).filter(id =>
+      id !== 'steamgriddb' && settings?.providers[id]?.enabled && settings.providers[id]?.configured
+    )
+  );
   const recentlyAdded = $derived.by(() => {
-    const firstAddedAt = catalog.games.reduce((earliest, game) => !earliest || game.addedAt < earliest ? game.addedAt : earliest, '');
-    return catalog.games.filter(game => firstAddedAt && game.addedAt > firstAddedAt)
-      .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName));
+    const firstAddedAt = catalog.games.reduce(
+      (earliest, game) => !earliest || game.addedAt < earliest ? game.addedAt : earliest,
+      ''
+    );
+
+    return catalog.games
+      .filter(game => firstAddedAt && game.addedAt > firstAddedAt)
+      .sort((left, right) => right.addedAt.localeCompare(left.addedAt) || sortByTitle(left, right));
   });
   const homeGroups = $derived.by(() => {
     const groups = new Map<string, CatalogView['games']>();
+
     for (const game of catalog.games) {
       const labels = homeGroupBy === 'decade'
         ? [game.metadata.releaseYear ? `${Math.floor(game.metadata.releaseYear / 10) * 10}s` : 'Unknown release date']
         : game.metadata.genres?.length ? game.metadata.genres : ['Uncategorized'];
+
       for (const label of labels) groups.set(label, [...(groups.get(label) ?? []), game]);
     }
-    return [...groups.entries()].sort(([a], [b]) => homeGroupBy === 'decade'
-      ? (a === 'Unknown release date' ? 1 : b === 'Unknown release date' ? -1 : b.localeCompare(a))
-      : a.localeCompare(b)).map(([label, items]) => ({ label, games: items.sort((a, b) => (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName)) }));
+
+    return [...groups.entries()]
+      .sort(([left], [right]) => homeGroupBy === 'decade'
+        ? (left === 'Unknown release date' ? 1 : right === 'Unknown release date' ? -1 : right.localeCompare(left))
+        : left.localeCompare(right))
+      .map(([label, items]) => ({ label, games: items.sort(sortByTitle) }));
   });
+
   const collectionName = (id: number | null) => {
     const item = catalog.collections.find(item => item.id === id);
     return item ? item.displayName || item.folderName : 'None';
   };
   const date = (value: string) => new Date(value).toLocaleString();
+
   function selectGame(id: number) {
     selectedId = id;
     query = catalog.games.find(game => game.id === id)?.displayName ?? '';
-    candidates = []; candidateGameId = null; detailMenu = false;
+    resetCandidateSearch();
+    detailMenu = false;
   }
+
   function openCollection(id: number) {
     collectionBack = { page, collectionId, needsMatching };
-    page = 'collections'; needsMatching = false; collectionId = id;
+    page = 'collections';
+    needsMatching = false;
+    collectionId = id;
   }
+
   function backFromCollection() {
     const previous = collectionBack;
+
     collectionBack = null;
     page = previous?.page ?? 'collections';
     collectionId = previous?.collectionId ?? null;
     needsMatching = previous?.needsMatching ?? false;
   }
+
   function openCollectionsOverview() {
     collectionBack = null;
-    page = 'collections'; needsMatching = false; collectionId = null;
+    page = 'collections';
+    needsMatching = false;
+    collectionId = null;
   }
+
   function openMatching() {
     if (!selected) return;
+
     query = selected.metadata.title || selected.displayName;
     searchProvider = searchableProviders[0] ?? '';
-    candidates = []; candidateGameId = null;
+    resetCandidateSearch();
     detailMenu = false;
     detailModal = 'matching';
   }
+
   function openArtwork() {
     artworkNotice = '';
     artworkPreview = null;
@@ -97,118 +194,213 @@
 
   async function match(automatic: boolean, candidate?: MatchCandidate) {
     if (!selected) return;
+
     const id = selected.id;
     busy = true;
     notice = automatic ? 'Finding a confident match…' : 'Retrieving and saving metadata…';
+
     try {
-      const result = automatic ? await window.gameShelf.autoMatch(id)
+      const result = automatic
+        ? await window.gameShelf.autoMatch(id)
         : await window.gameShelf.selectMatch(id, candidate!.providerId, candidate!.recordId);
+
       if (result.ok) {
-        catalog = result.value; candidates = []; candidateGameId = null;
+        catalog = result.value;
+        resetCandidateSearch();
         if (result.value.games.find(game => game.id === id)?.matchStatus === 'matched') detailModal = null;
       }
+
       notice = result.message ?? 'Match saved.';
-    } catch { notice = 'Matching failed. Please retry.'; }
-    finally { busy = false; }
+    } catch {
+      notice = 'Matching failed. Please retry.';
+    } finally {
+      busy = false;
+    }
   }
 
   async function searchMatches() {
     if (!selected) return;
+
     const id = selected.id;
-    busy = true; candidates = []; candidateGameId = null; notice = 'Searching the selected metadata provider…';
+    busy = true;
+    resetCandidateSearch();
+    notice = 'Searching the selected metadata provider…';
+
     try {
       const result = await window.gameShelf.searchMatches(id, query, searchProvider || undefined);
-      if (result.ok && selectedId === id) { candidates = result.value.candidates; candidateGameId = id; }
+
+      if (result.ok && selectedId === id) {
+        candidates = result.value.candidates;
+        candidateGameId = id;
+      }
+
       notice = result.message ?? '';
-    } catch { notice = 'Search failed. Please retry.'; }
-    finally { busy = false; }
+    } catch {
+      notice = 'Search failed. Please retry.';
+    } finally {
+      busy = false;
+    }
   }
 
   async function refresh(choose = false) {
     busy = true;
     notice = '';
+
     try {
       library = await (choose ? window.gameShelf.chooseLibraryRoot() : window.gameShelf.getLibraryState());
       const result = await window.gameShelf.getCatalog();
+
       if (result.ok) catalog = result.value;
       else notice = library?.message.includes('Rebuild catalog') ? library.message : result.message;
-    } catch { notice = 'Unable to load the library. Please retry.'; }
-    finally { busy = false; }
+    } catch {
+      notice = 'Unable to load the library. Please retry.';
+    } finally {
+      busy = false;
+    }
   }
 
   async function scan() {
     busy = true;
     notice = 'Scanning library, then matching unresolved games…';
-    candidates = []; candidateGameId = null;
+    resetCandidateSearch();
     await refreshMatchingStatus();
     const progressTimer = setInterval(() => { void refreshMatchingStatus(); }, 300);
+
     try {
       const result = await window.gameShelf.scanLibrary();
+
       if (result.ok) catalog = result.value;
       notice = result.message ?? 'Scan complete.';
       library = await window.gameShelf.getLibraryState();
       const settingsResult = await window.gameShelf.getSettings();
+
       if (settingsResult.ok) settings = settingsResult.value;
-    } catch { notice = 'Unable to complete the scan. Please retry.'; }
-    finally { clearInterval(progressTimer); await refreshMatchingStatus(); busy = false; }
+    } catch {
+      notice = 'Unable to complete the scan. Please retry.';
+    } finally {
+      clearInterval(progressTimer);
+      await refreshMatchingStatus();
+      busy = false;
+    }
   }
 
   async function refreshMatchingStatus() {
-    try { matchingStatus = await window.gameShelf.getMatchingStatus(); } catch { /* Status is nonessential UI feedback. */ }
+    try {
+      matchingStatus = await window.gameShelf.getMatchingStatus();
+    } catch {
+      // Status is nonessential UI feedback.
+    }
   }
 
   async function fetchArtwork() {
     if (!selected) return;
+
     busy = true;
-    try { const result = await window.gameShelf.fetchArtwork(selected.id, steamGridDbId.trim() || undefined); if (result.ok) artworkPreview = result.value; artworkNotice = result.message ?? ''; notice = artworkNotice; }
-    catch { artworkNotice = 'Could not fetch artwork. Please retry.'; notice = artworkNotice; }
-    finally { busy = false; }
+
+    try {
+      const result = await window.gameShelf.fetchArtwork(selected.id, steamGridDbId.trim() || undefined);
+
+      if (result.ok) artworkPreview = result.value;
+      artworkNotice = result.message ?? '';
+      notice = artworkNotice;
+    } catch {
+      artworkNotice = 'Could not fetch artwork. Please retry.';
+      notice = artworkNotice;
+    } finally {
+      busy = false;
+    }
   }
+
   async function confirmArtwork() {
     if (!selected) return;
+
     busy = true;
-    try { const result = await window.gameShelf.confirmArtwork(selected.id); if (result.ok) { catalog = result.value; artworkPreview = null; } artworkNotice = result.message ?? ''; notice = artworkNotice; }
-    catch { artworkNotice = 'Could not replace artwork. Please retry.'; notice = artworkNotice; }
-    finally { busy = false; }
+
+    try {
+      const result = await window.gameShelf.confirmArtwork(selected.id);
+
+      if (result.ok) {
+        catalog = result.value;
+        artworkPreview = null;
+      }
+
+      artworkNotice = result.message ?? '';
+      notice = artworkNotice;
+    } catch {
+      artworkNotice = 'Could not replace artwork. Please retry.';
+      notice = artworkNotice;
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function openLocation(open: (gameId: number) => ReturnType<typeof window.gameShelf.openInstallFolder>, success: string, failure: string) {
+    if (!selected) return;
+
+    busy = true;
+
+    try {
+      const result = await open(selected.id);
+      notice = result.message ?? success;
+    } catch {
+      notice = failure;
+    } finally {
+      busy = false;
+    }
   }
 
   async function openFolder() {
-    if (!selected) return;
-    busy = true;
-    try {
-      const result = await window.gameShelf.openInstallFolder(selected.id);
-      notice = result.message ?? 'Install location opened.';
-    } catch { notice = 'Unable to open the install location. Please retry.'; }
-    finally { busy = false; }
+    await openLocation(
+      gameId => window.gameShelf.openInstallFolder(gameId),
+      'Install location opened.',
+      'Unable to open the install location. Please retry.'
+    );
   }
+
   async function openContainerFolder() {
-    if (!selected) return;
-    busy = true;
-    try { const result = await window.gameShelf.openContainerFolder(selected.id); notice = result.message ?? 'Container folder opened.'; }
-    catch { notice = 'Unable to open the container folder. Please retry.'; }
-    finally { busy = false; }
+    await openLocation(
+      gameId => window.gameShelf.openContainerFolder(gameId),
+      'Container folder opened.',
+      'Unable to open the container folder. Please retry.'
+    );
   }
+
   async function clearMetadata() {
     if (!selected || !confirm('Clear this game’s provider and manual metadata? It will return to Needs Matching. Custom pasted artwork is kept.')) return;
+
     busy = true;
-    try { const result = await window.gameShelf.clearMetadata(selected.id); if (result.ok) { catalog = result.value; candidates = []; candidateGameId = null; detailModal = null; } notice = result.message ?? ''; }
-    catch { notice = 'Could not clear metadata. Please retry.'; }
-    finally { busy = false; }
+
+    try {
+      const result = await window.gameShelf.clearMetadata(selected.id);
+
+      if (result.ok) {
+        catalog = result.value;
+        resetCandidateSearch();
+        detailModal = null;
+      }
+
+      notice = result.message ?? '';
+    } catch {
+      notice = 'Could not clear metadata. Please retry.';
+    } finally {
+      busy = false;
+    }
   }
 
   async function saveSettings(form: HTMLFormElement) {
     const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
+    const checked = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).checked;
     const result = await window.gameShelf.saveSettings({
       collectionPrefix: get('prefix'),
-      showCollectionGames: (form.elements.namedItem('visible') as HTMLInputElement).checked,
+      showCollectionGames: checked('visible'),
       matchingThreshold: Number(get('threshold')),
-      greedyMatch: (form.elements.namedItem('greedy-match') as HTMLInputElement).checked,
+      greedyMatch: checked('greedy-match'),
       defaultSort: get('sort') as 'title' | 'releaseDate',
       providerOrder: get('order').split(',').map(id => id.trim()).filter(Boolean),
       providers: {
-        igdb: { enabled: (form.elements.namedItem('igdb') as HTMLInputElement).checked, configured: settings!.providers.igdb.configured },
-        thegamesdb: { enabled: (form.elements.namedItem('thegamesdb') as HTMLInputElement).checked, configured: settings!.providers.thegamesdb.configured },
-        steamgriddb: { enabled: (form.elements.namedItem('steamgriddb') as HTMLInputElement).checked, configured: settings!.providers.steamgriddb.configured }
+        igdb: { enabled: checked('igdb'), configured: settings!.providers.igdb.configured },
+        thegamesdb: { enabled: checked('thegamesdb'), configured: settings!.providers.thegamesdb.configured },
+        steamgriddb: { enabled: checked('steamgriddb'), configured: settings!.providers.steamgriddb.configured }
       },
       credentials: {
         igdbClientId: get('igdb-client'),
@@ -217,17 +409,48 @@
         steamgriddbApiKey: get('steamgriddb-key')
       }
     });
+
     if (result.ok) settings = result.value;
     notice = result.ok ? 'Settings saved.' : result.message;
   }
 
   onMount(() => {
-    window.gameShelf.getAppInfo().then(info => { version = info.version; }).catch(() => { notice = 'Unable to read app information.'; });
+    window.gameShelf
+      .getAppInfo()
+      .then(info => { version = info.version; })
+      .catch(() => { notice = 'Unable to read app information.'; });
     void refresh();
     void refreshMatchingStatus();
-    window.gameShelf.getSettings().then(result => { if (result.ok) settings = result.value; });
-    const keys = (event: KeyboardEvent) => { if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) || !games.length) return; event.preventDefault(); const current = Math.max(0, games.findIndex(game => game.id === selectedId)); const columns = Math.max(1, Math.floor((window.innerWidth - 300) / 152)); const offset = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' ? -columns : columns; selectGame(games[Math.max(0, Math.min(games.length - 1, current + offset))].id); };
-    window.addEventListener('keydown', keys); return () => window.removeEventListener('keydown', keys);
+    window.gameShelf.getSettings().then(result => {
+      if (result.ok) settings = result.value;
+    });
+
+    const keys = (event: KeyboardEvent) => {
+      const isEditing = event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement;
+      const isArrowKey = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key);
+
+      if (isEditing || !isArrowKey || !games.length) return;
+
+      event.preventDefault();
+
+      const current = Math.max(0, games.findIndex(game => game.id === selectedId));
+      const columns = Math.max(1, Math.floor((window.innerWidth - 300) / 152));
+      const offset = event.key === 'ArrowLeft'
+        ? -1
+        : event.key === 'ArrowRight'
+          ? 1
+          : event.key === 'ArrowUp'
+            ? -columns
+            : columns;
+      const next = Math.max(0, Math.min(games.length - 1, current + offset));
+
+      selectGame(games[next].id);
+    };
+
+    window.addEventListener('keydown', keys);
+    return () => window.removeEventListener('keydown', keys);
   });
 </script>
 
@@ -298,8 +521,8 @@
     </nav>
 
     <section class="game-list" aria-label="Games">
-      {#if page === 'home'}<div class="home"><h2>Home</h2><section class="home-section"><h3>Collections</h3>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span></button>{/each}</div>{/if}</section>{#if recentlyAdded.length}<section class="home-section"><h3>Recently added</h3><div class="game-grid home-grid">{#each recentlyAdded as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong><small>{date(game.addedAt)}</small></span></button>{/each}</div></section>{/if}<section class="home-section"><div class="group-heading"><h3>Library</h3><label>Group by <select bind:value={homeGroupBy}><option value="decade">Release decade</option><option value="genre">Genre</option></select></label></div>{#if homeGroups.length === 0}<p class="empty">No games yet. Choose your folder, then select Scan library.</p>{:else}{#each homeGroups as group (group.label)}<section class="home-group"><h3>{group.label} <span class="count">{group.games.length}</span></h3><div class="game-grid home-grid">{#each group.games as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong>{#if homeGroupBy === 'genre' && game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}</span></button>{/each}</div></section>{/each}{/if}</section></div>{/if}
-      {#if page === 'collections' && collectionId === null}<div class="home"><h2>Collections</h2>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span>{#if item.missing}<small class="missing">Missing</small>{/if}</button>{/each}</div>{/if}</div>{/if}
+      {#if page === 'home'}<div class="home"><h2>Home</h2><section class="home-section"><h3>Collections</h3>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<CollectionCard collection={item} {artwork} onOpen={openCollection} />{/each}</div>{/if}</section>{#if recentlyAdded.length}<section class="home-section"><h3>Recently added</h3><div class="game-grid home-grid">{#each recentlyAdded as game (game.id)}<GameCard {game} showAddedAt onSelect={selectGame} />{/each}</div></section>{/if}<section class="home-section"><div class="group-heading"><h3>Library</h3><label>Group by <select bind:value={homeGroupBy}><option value="decade">Release decade</option><option value="genre">Genre</option></select></label></div>{#if homeGroups.length === 0}<p class="empty">No games yet. Choose your folder, then select Scan library.</p>{:else}{#each homeGroups as group (group.label)}<section class="home-group"><h3>{group.label} <span class="count">{group.games.length}</span></h3><div class="game-grid home-grid">{#each group.games as game (game.id)}<GameCard {game} showGenreYear={homeGroupBy === 'genre'} onSelect={selectGame} />{/each}</div></section>{/each}{/if}</section></div>{/if}
+      {#if page === 'collections' && collectionId === null}<div class="home"><h2>Collections</h2>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<CollectionCard collection={item} {artwork} onOpen={openCollection} />{/each}</div>{/if}</div>{/if}
       {#if page === 'games' || (page === 'collections' && collectionId !== null)}
       <div class="filters" aria-label="Game filters"><label class="search-filter"><span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg></span><input bind:value={titleFilter} placeholder="Search your library" /></label><label>Year <select bind:value={yearFilter}><option value="">All years</option>{#each years as year}<option value={String(year)}>{year}</option>{/each}</select></label><label>Genre <select bind:value={genreFilter}><option value="">All genres</option>{#each genres as genre}<option value={genre}>{genre}</option>{/each}</select></label><label>Collection <select bind:value={collectionFilter}><option value="all">All collections</option><option value="none">No collection</option>{#each catalog.collections as item}<option value={String(item.id)}>{item.displayName || item.folderName}</option>{/each}</select></label><label>Sort <select bind:value={sort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label></div>
       <div class="list-heading">{#if page === 'collections' && collection}<button class="back" onclick={backFromCollection}>← Back</button>{/if}<h2>{needsMatching ? 'Needs Matching' : collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2></div>
@@ -308,16 +531,7 @@
       {:else}
         <ul class="game-grid">
           {#each games as game (game.id)}
-            <li><button class="game-card" class:active={selectedId === game.id} aria-pressed={selectedId === game.id} onclick={() => selectGame(game.id)}>
-              {#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder" aria-hidden="true">No cover</span>{/if}
-              {#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}
-              <span class="card-copy"><strong>{game.metadata.title || game.displayName}</strong><span class="card-meta">
-                {#if game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}
-                {#if game.metadata.rating !== undefined}<small>★ {game.metadata.rating.toFixed(0)}</small>{/if}
-                {#if game.collectionId !== null}<small>{collectionName(game.collectionId)}</small>{/if}
-                {#if game.missing}<small class="missing">Missing</small>{/if}
-              </span></span>
-            </button></li>
+            <li><GameCard {game} active={selectedId === game.id} showMetadata collectionName={game.collectionId !== null ? collectionName(game.collectionId) : undefined} onSelect={selectGame} /></li>
           {/each}
         </ul>
       {/if}
@@ -464,20 +678,7 @@
   .group-heading label { display: flex; align-items: center; gap: 7px; color: #bcc5d5; font-size: 12px; }
   .group-heading select { padding: 7px 9px; color: #edf0f6; background: #171b24; border: 1px solid #566380; border-radius: 6px; }
   .collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
-  .collection-card { position: relative; min-height: 180px; overflow: hidden; padding: 0; display: grid; place-items: end start; text-align: left; }
-  .collection-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .42; filter: saturate(.7) brightness(.65); }
-  .collection-card .card-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .collection-card > span:not(.card-placeholder), .collection-card small { position: relative; z-index: 1; width: 100%; padding: 12px; background: linear-gradient(transparent, rgb(10 14 20 / .9)); font-size: 17px; font-weight: 700; }
-  .collection-card small { padding-top: 0; font-size: 12px; }
   .game-grid li + li { margin-top: 0; }
-  .game-card { position: relative; width: 100%; aspect-ratio: 2 / 3; min-height: 0; padding: 0; overflow: hidden; text-align: left; background: #171b24; }
-  .game-card img, .game-card .card-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #171b24; }
-  .card-placeholder { display: grid; place-items: center; color: #a5b0c6; font-size: 12px; }
-  .card-copy { position: absolute; z-index: 1; right: 0; bottom: 0; left: 0; display: block; padding: 32px 11px 11px; background: linear-gradient(transparent, rgb(10 14 20 / .94) 42%); }
-  .card-copy strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; color: #fff; line-height: 1.25; }
-  .card-meta { display: flex; flex-wrap: wrap; gap: 4px 9px; }
-  .card-meta small { margin: 5px 0 0; }
-  .match-warning { position: absolute; z-index: 1; top: 8px; right: 8px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #f0c84b; color: #342900; font-size: 17px; font-weight: 900; box-shadow: 0 2px 8px #0009; }
   small { display: block; font-size: 12px; color: #bcc5d5; margin-top: 4px; }
   .missing { color: #f0c18c; }
   .count { margin-left: 6px; }
