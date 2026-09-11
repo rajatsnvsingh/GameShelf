@@ -13,8 +13,8 @@ export function within(parent: string, candidate: string): boolean {
   return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..\\'));
 }
 
-export function validateRootLayout(base: string, root: string, data = path.join(base, 'data')): void {
-  if (!/^[a-z]:[\\/]/i.test(root) || path.parse(base).root.toLowerCase() !== path.parse(root).root.toLowerCase()) {
+export function validateRootLayout(base: string, root: string, data = path.join(base, 'data'), allowCrossDrive = false): void {
+  if (!/^[a-z]:[\\/]/i.test(root) || (!allowCrossDrive && path.parse(base).root.toLowerCase() !== path.parse(root).root.toLowerCase())) {
     throw new Error('Choose a library on the same local drive as GameShelf.');
   }
   if (within(root, base) || within(root, data) || within(data, root)) {
@@ -22,16 +22,17 @@ export function validateRootLayout(base: string, root: string, data = path.join(
   }
 }
 
-export function resolveRoot(base: string, relative: string): string {
-  if (!relative || path.isAbsolute(relative) || /[:\x00-\x1f]/.test(relative)) {
+export function resolveRoot(base: string, storedRoot: string, allowCrossDrive = false): string {
+  if (!storedRoot || /[\x00-\x1f]/.test(storedRoot) || /^[a-z]:[^\\/]/i.test(storedRoot) || (!allowCrossDrive && (path.isAbsolute(storedRoot) || /:/.test(storedRoot)))) {
     throw new Error('The library root must be a relative path.');
   }
-  const root = path.resolve(base, relative);
-  validateRootLayout(base, root);
+  const root = path.resolve(base, storedRoot);
+  validateRootLayout(base, root, path.join(base, 'data'), allowCrossDrive);
   return root;
 }
 
-export function relativeRoot(base: string, root: string): string {
-  validateRootLayout(base, root);
-  return path.relative(base, root).replaceAll('\\', '/');
+export function relativeRoot(base: string, root: string, allowCrossDrive = false): string {
+  validateRootLayout(base, root, path.join(base, 'data'), allowCrossDrive);
+  const relative = path.relative(base, root);
+  return (path.isAbsolute(relative) ? path.normalize(root) : relative).replaceAll('\\', '/');
 }

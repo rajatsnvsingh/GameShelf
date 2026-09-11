@@ -167,7 +167,8 @@ export class IgdbProvider implements MetadataProvider {
     return this.operation(async () => {
       const escaped = query.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       const result = await this.games(`search "${escaped}"; fields name,first_release_date,cover.image_id; limit 50;`);
-      if (result.length >= 50) throw new IgdbError('search-too-broad');
+      // IGDB caps `search` responses at the requested limit. Keep the ranked first page usable for
+      // manual selection (for example, broad titles such as "Prototype") rather than reporting none.
       return result.map(candidate);
     });
   }

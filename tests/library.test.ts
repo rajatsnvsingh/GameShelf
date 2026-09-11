@@ -49,7 +49,7 @@ test('manual scan uses real shallow listings, persists membership, and opens the
   await service.chooseRoot(async () => root);
   const catalog = value(await service.scan());
   assert.deepEqual(visits, ['', '[C] Empty', '[C] One']);
-  assert.equal(catalog.games.length, 2);
+  assert.equal(catalog.games.length, 3);
   assert.equal(catalog.collections.length, 2);
   const member = catalog.games.find(game => game.folderName === 'Game B')!;
   assert.equal(member.collectionId, catalog.collections.find(collection => collection.displayName === 'One')!.id);
@@ -57,6 +57,22 @@ test('manual scan uses real shallow listings, persists membership, and opens the
   assert.deepEqual(opened, [await realpath(join(root, '[C] One', 'Game B'))]);
   assert.equal(await readFile(join(root, 'Game A', 'sentinel.txt'), 'utf8'), 'untouched fixture');
   assert.ok((await readFile(join(base, 'data', 'library.db'))).length > 0);
+});
+
+test('changing the selected library requires and then permits an explicit rebuild', async t => {
+  const { base, root, service } = await fixture(t);
+  await service.chooseRoot(async () => root);
+  value(await service.scan());
+  const other = join(base, 'Other library');
+  await mkdir(join(other, 'Only Here'), { recursive: true });
+  const changed = await service.chooseRoot(async () => other);
+  assert.match(changed.message, /Rebuild catalog/);
+  assert.equal((await service.getCatalog()).ok, false);
+  const scan = await service.scan();
+  assert.equal(scan.ok, false);
+  if (!scan.ok) assert.match(scan.message, /Open Settings and choose Rebuild catalog/);
+  const rebuilt = value(await service.rebuildCatalog());
+  assert.deepEqual(rebuilt.games.map(game => game.folderName), ['Only Here']);
 });
 
 test('scan recognizes immediate archives, skips underscore folders, and opens archive-specific locations', async t => {
@@ -69,10 +85,12 @@ test('scan recognizes immediate archives, skips underscore folders, and opens ar
   await service.chooseRoot(async () => root);
   const catalog = value(await service.scan());
   assert.equal(catalog.games.some(game => game.folderName === '_Private' || game.folderName === '_Hidden Member'), false);
-  const zip = catalog.games.find(game => game.folderName === 'Root.zip')!;
-  const rar = catalog.games.find(game => game.folderName === 'Collection.RAR')!;
-  const iso = catalog.games.find(game => game.folderName === 'Disc.iso')!;
+  const zip = catalog.games.find(game => game.relativePath === 'Root.zip')!;
+  const rar = catalog.games.find(game => game.relativePath === '[C] One/Collection.RAR')!;
+  const iso = catalog.games.find(game => game.relativePath === 'Disc.iso')!;
   assert.ok(zip && rar && iso);
+  assert.deepEqual([zip.folderName, rar.folderName, iso.folderName], ['Root', 'Collection', 'Disc']);
+  assert.deepEqual([zip.displayName, rar.displayName, iso.displayName], ['Root', 'Collection', 'Disc']);
   assert.equal((await service.openInstallFolder(zip.id)).ok, true);
   assert.equal((await service.openInstallFolder(rar.id)).ok, true);
   assert.equal((await service.openInstallFolder(iso.id)).ok, true);
@@ -149,7 +167,7 @@ test('real listing skips junctions and rejects paths beyond its allowed depth', 
   await symlink(join(base, 'Outside'), join(root, '[C] One', 'Linked Game'), 'junction');
   await service.chooseRoot(async () => root);
   const catalog = value(await service.scan());
-  assert.equal(catalog.games.length, 2);
+  assert.equal(catalog.games.length, 3);
   assert.equal(catalog.collections.length, 2);
   const reader = await createScanReader(root);
   for (const path of ['..', '../Outside', '[C] One/Game B', '[C] Link']) {
@@ -162,7 +180,7 @@ test('folder resolution rejects traversal, files, deeper paths, and changed coll
   const { base, root, service, opened } = await fixture(t);
   await service.chooseRoot(async () => root);
   const member = value(await service.scan()).games.find(game => game.folderName === 'Game B')!;
-  for (const path of ['../Outside', root, 'setup.exe', 'Game A/sentinel.txt', 'Game A/Never Visit/Deeper']) {
+  for (const path of ['../Outside', root, 'Game A/sentinel.txt', 'Game A/Never Visit/Deeper']) {
     await assert.rejects(resolveInstallFolder(root, path));
   }
   await rename(join(root, '[C] One'), join(base, 'Moved Collection'));

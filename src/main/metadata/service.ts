@@ -5,7 +5,7 @@ import { SteamGridDbProvider } from './steamgriddb.ts';
 import type { ProviderEntry } from './provider.ts';
 
 /** Construct once per explicit metadata session; shared instance retains token and rate bounds. */
-export async function configuredProviders(config: ConfigService): Promise<{ providers: ProviderEntry[]; threshold: number }> {
+export async function configuredProviders(config: ConfigService): Promise<{ providers: ProviderEntry[]; threshold: number; greedyMatch: boolean }> {
   const settings = await config.getMetadataSettings();
   const providers: ProviderEntry[] = [];
   for (const id of new Set(settings.providerOrder)) {
@@ -16,7 +16,7 @@ export async function configuredProviders(config: ConfigService): Promise<{ prov
     if (id === 'steamgriddb') providers.push({ provider: new SteamGridDbProvider(settings.steamgriddb), enabled: settings.steamgriddb.enabled,
       configured: Boolean(settings.steamgriddb.apiKey.trim()) });
   }
-  return { providers, threshold: settings.threshold };
+  return { providers, threshold: settings.threshold, greedyMatch: settings.greedyMatch };
 }
 
 /** Preserve the provider's token and rate state until INI metadata settings change. */

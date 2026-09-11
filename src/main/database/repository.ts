@@ -88,6 +88,15 @@ export class CatalogRepository {
   clearManualWork(gameId: number): boolean {
     return this.db.transaction(() => { const result = this.db.prepare("UPDATE games SET manual_overrides = '{}' WHERE id = ?").run(gameId); this.db.prepare("DELETE FROM artwork WHERE game_id = ? AND source = 'manual'").run(gameId); return result.changes === 1; })();
   }
+  clearMetadata(gameId: number): boolean {
+    if (!Number.isSafeInteger(gameId) || gameId <= 0) throw new Error('Invalid game ID.');
+    return this.db.transaction(() => {
+      const result = this.db.prepare(`UPDATE games SET match_status = 'unmatched', binding_source = NULL,
+        provider_id = NULL, provider_record_id = NULL, confidence = NULL, provider_metadata = '{}', manual_overrides = '{}' WHERE id = ?`).run(gameId);
+      this.db.prepare("DELETE FROM artwork WHERE game_id = ? AND source = 'provider'").run(gameId);
+      return result.changes === 1;
+    })();
+  }
   refreshBoundMatch(gameId: number, providerId: string, recordId: string, details: GameDetails): boolean {
     if (!Number.isSafeInteger(gameId) || gameId <= 0 || details.recordId !== recordId) throw new Error('Invalid match refresh.');
     return this.db.prepare('UPDATE games SET provider_metadata = ? WHERE id = ? AND provider_id = ? AND provider_record_id = ?').run(JSON.stringify(displayMetadata({ ...details })), gameId, providerId, recordId).changes === 1;

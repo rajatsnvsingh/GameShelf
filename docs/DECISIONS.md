@@ -12,11 +12,11 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 | Storage | Durable config, database, cached/custom artwork, and any logs stay with the portable library. Temporary host Electron files are acceptable. |
 | Paths | Root relative to portable base; game/collection paths relative to root; artwork paths relative to cache. Preserve collection segments. No fixed drive letters. |
 | Discovery | One user-selected root. Immediate directories are games except `_`-prefixed directories, which are excluded. `[C]` directories are collections whose immediate child directories are games. Immediate `.zip`, `.rar`, and `.iso` files at either scanned level are games. No deeper scan or archive inspection. |
-| Names | Literal game folder/archive file names initially. Collection display names omit the prefix. No edition parsing or rename inference. |
+| Names | Literal folder names display as-is; supported archive names display without their `.zip`, `.rar`, or `.iso` suffix while stored relative paths retain the real filename. Collection display names omit the prefix. No edition parsing or rename inference. |
 | Collections | Separate collection views; configurable inclusion of members in main library. Members always remain searchable. Prefix defaults to `[C]` and is an INI setting. |
 | Scans | Manual only. Add new, mark missing, never auto-delete. Failed/incomplete scans do not change presence state. |
 | Identity | Relative path initially identifies a game. Rename/move may become an old missing entry and a new entry. |
-| Metadata | Optional; multiple enabled providers with INI priority and credentials. Only confident, unambiguous auto-matches; otherwise manual matching. |
+| Metadata | Optional; multiple enabled providers with INI priority and credentials. Exact normalized titles use provider ranking; approximate auto-matches require confidence and an unambiguous lead. An opt-in greedy setting accepts the first provider-ranked candidate. |
 | Manual work | Stored manual matches override provider order. Manual metadata/artwork overrides survive normal scans/refreshes; only explicit replace-all rescrape may replace them. |
 | Artwork | Covers and backgrounds first; locally cached, with clipboard-paste custom images. Manual > cached provider > placeholder. |
 | UI | Playnite-inspired, windowed, mouse/keyboard. Home (collections, recently added, release-decade or genre groups), All Games, Collections, details, Needs Matching, Settings. Recently added excludes the catalog's initial scan and rebuild baseline. |
@@ -24,7 +24,7 @@ This is the concise decision ledger. [Architecture](ARCHITECTURE.md) defines beh
 | Settings | INI holds durable choices and plaintext API keys. Do not persist incidental UI state. |
 | Network | Only enabled metadata/artwork provider traffic; no telemetry or automatic updates. Local catalog works without providers and offline after caching. |
 | Lifetime | Single app instance; manual application updates; migrations preserve usable existing catalogs. |
-| Maintenance | Explicit deletion of missing catalog entries; separately confirmed database rebuild. Never delete or modify installer folders. |
+| Maintenance | Explicit deletion of missing catalog entries; separately confirmed database rebuild; and a separately confirmed wipe of catalog/cache/log state that preserves configuration and credentials. Never delete or modify installer folders. |
 | Delivery | One milestone per implementation task: inspect, plan, implement, test, report. No scope expansion. |
 
 ## Phase 1 tooling
@@ -33,7 +33,7 @@ Phase 1 tooling: npm with exact dependency versions and `package-lock.json`; ele
 
 ## Phase 2 configuration
 
-Phase 2 uses a strict scalar INI format with atomic replacement and no new dependency. The checkout is the unpackaged base; packaged builds require the portable launcher's directory. Same-drive sibling libraries are supported through relative paths. Missing config remains in memory until the user selects a valid root; invalid config is never silently reset. Collection games default to visible and sorting defaults to title. `0.90` is stored as an initial threshold only, pending fixture-based matching work.
+Phase 2 uses a strict scalar INI format with atomic replacement and no new dependency. The checkout is the unpackaged base; packaged builds require the portable launcher's directory. Same-drive sibling libraries are supported through relative paths. Unpackaged development may use a local cross-drive root, stored drive-qualified and therefore non-portable; packaged builds reject that configuration. Missing config remains in memory until the user selects a valid root; invalid config is never silently reset. Collection games default to visible and sorting defaults to title. `0.75` is the default automatic-match threshold, while ambiguity protection remains mandatory.
 
 ## Phase 3 scanner
 
@@ -49,7 +49,7 @@ Connect the scanner and repository through one main-process library service. Cre
 
 ## Phase 6 matching foundation
 
-Use main-only normalized provider contracts and a dependency-free resolver that returns proposals without persistence. Start conservatively: normalized exact titles score 1, other shared-word scores are capped at 0.89, and the default threshold stays 0.90. Require a 0.10 lead over the runner-up. Preserve all existing bindings without provider calls. Try enabled/configured providers sequentially in supplied priority order and return safe per-provider outcomes for unresolved/error cases. Fake providers validate this contract; actual provider wiring and request controls begin in Phase 7.
+Use main-only normalized provider contracts and a dependency-free resolver that returns proposals without persistence. Normalized exact titles score 1 and use provider order, while other shared-word scores are capped at 0.89 and require a 0.10 lead over the runner-up. The default threshold is 0.75. Preserve all existing bindings without provider calls. Try enabled/configured providers sequentially in supplied priority order and return safe per-provider outcomes for unresolved/error cases. Fake providers validate this contract; actual provider wiring and request controls begin in Phase 7.
 
 ## Phase 7 IGDB
 
@@ -57,11 +57,11 @@ Use native fetch without a new dependency. Credentials belong in the ignored `[p
 
 ## Phase 8 matching workflow
 
-Save the local scan before enriching every unresolved, unbound game. Preserve existing bindings. Stop automatic enrichment on provider failure and preserve local discoveries. Manual search does not save; it targets one selected enabled metadata provider, and selection retrieves details before atomically writing the binding and metadata. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
+Save the local scan before enriching every unresolved, unbound game. Preserve existing bindings. A provider failure leaves that game unresolved but does not stop later automatic attempts, and local discoveries remain preserved. Manual search does not save; it targets one selected enabled metadata provider, and selection retrieves details before atomically writing the binding and metadata. Require selections to belong to the latest main-process search for that game and configuration. Use the existing schema, preserve overrides, and expose only allowlisted text metadata. Retain provider sessions for token/rate reuse. Defer artwork, bulk maintenance, and general refresh/editing to their milestones.
 
 ## Phase 9 TheGamesDB and priority
 
-Add TheGamesDB as the second optional metadata provider, using its API key in ignored INI settings and bounded GET requests to its fixed API origin. Resolve company/genre IDs only when needed, cache names in memory, reject incomplete search pages, and omit age ratings from review scores. Preserve existing configured order; new configurations default to IGDB then TheGamesDB with both disabled. Skip disabled/misconfigured entries independently and preserve bindings across order changes. No additional dependency, schema, renderer bridge, or artwork behavior is needed.
+Add TheGamesDB as the second optional metadata provider, using its API key in ignored INI settings and bounded GET requests to its fixed API origin. Resolve company/genre IDs only when needed, cache names in memory, and treat incomplete search pages as no result rather than following them. Omit age ratings from review scores. Preserve existing configured order; new configurations default to IGDB then TheGamesDB with both disabled. Skip disabled/misconfigured entries independently and preserve bindings across order changes. No additional dependency, schema, renderer bridge, or artwork behavior is needed.
 
 ## Phase 10 artwork cache
 
@@ -72,7 +72,7 @@ Add a SQLite artwork association and opaque local cache filenames. Cache selecte
 - `better-sqlite3` is verified with the current development Electron runtime; native dependency inclusion and behavior in the packaged Windows build remain to validate.
 - electron-builder is the planned packaging tool; verify persistent portable-base resolution and native dependency bundling.
 - Provider selection is settled: IGDB first (Phase 7), TheGamesDB second (Phase 9), and SteamGridDB third for supplemental artwork (Phase 10). Default priority is IGDB -> TheGamesDB -> SteamGridDB, applied within provider capabilities; SteamGridDB does not replace descriptive metadata. All other providers are deferred. Each provider remains optional and must use the enabled-provider boundary.
-- Tune confidence scoring and ambiguity rules against fixtures. `0.90` was an example starting threshold, not an established accuracy guarantee.
+- Tune confidence scoring and ambiguity rules against fixtures. `0.75` is a default, not an established accuracy guarantee.
 - Exact schema, IPC method names, package versions, and component filenames are implementation details; preserve the documented contracts.
 
 ## Explicitly out of scope

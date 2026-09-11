@@ -27,7 +27,7 @@ export type ScanResult =
     readonly relativePath: string;
   } };
 
-const archiveExtensions = new Set(['.zip', '.rar', '.iso']);
+const archiveExtensions = new Set(['.zip', '.rar', '.iso', '.exe']);
 
 export function isSupportedGameArchive(name: string): boolean {
   const extension = name.slice(name.lastIndexOf('.')).toLowerCase();

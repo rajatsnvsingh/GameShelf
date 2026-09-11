@@ -110,7 +110,13 @@ export class TheGamesDbProvider implements MetadataProvider {
   }
   async search(query: string): Promise<SearchCandidate[]> {
     if (!query.trim() || query.length > 250 || /[\x00-\x1f]/.test(query)) throw new TheGamesDbError('invalid-query');
-    return this.operation(async () => this.games(await this.request('/v1.1/Games/ByGameName', { name: query, page: '1' })).map(candidate));
+    try {
+      return await this.operation(async () => this.games(await this.request('/v1.1/Games/ByGameName', { name: query, page: '1' })).map(candidate));
+    } catch (error) {
+      // A paginated response is deliberately unusable, not an outage: skip it and let batch matching continue.
+      if (error instanceof TheGamesDbError && error.code === 'search-too-broad') return [];
+      throw error;
+    }
   }
   private async resolveNames(kind: keyof typeof lookups, value: unknown): Promise<string[]> {
     if (value == null) return [];

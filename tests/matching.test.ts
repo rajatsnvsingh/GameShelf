@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -23,11 +23,11 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
     async search(query) {
       calls.push(`search:${query}`);
       if (query === 'Game A') return [{ recordId: '1', title: 'Game A' }];
-      return [{ recordId: '2', title: 'Game B', releaseYear: 1999, hasArtwork: true }, { recordId: '3', title: 'Game B', releaseYear: 2024 }];
+      return [{ recordId: '2', title: 'Game B Deluxe', releaseYear: 1999, hasArtwork: true }, { recordId: '3', title: 'Game B Classic', releaseYear: 2024 }];
     },
     async getGame(recordId) {
       calls.push(`detail:${recordId}`);
-      return { recordId, title: recordId === '1' ? 'Game A' : 'Game B', description: 'Fixture description',
+      return { recordId, title: recordId === '1' ? 'Game A' : recordId === '2' ? 'Game B Deluxe' : 'Game B Classic', description: 'Fixture description',
         artwork: [{ kind: 'cover', url: 'https://fixture.invalid/image.jpg' }] };
     }
   };
@@ -39,7 +39,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   };
   const artworkOnlyEntry = { provider: artworkOnlyProvider, enabled: false, configured: true };
   const config = new ConfigService(base);
-  const makeService = () => new LibraryService(base, config, async () => '', undefined, async () => ({ providers: [entry, artworkOnlyEntry], threshold: 0.9 }));
+  const makeService = () => new LibraryService(base, config, async () => '', undefined, async () => ({ providers: [entry, artworkOnlyEntry], threshold: 0.9, greedyMatch: false }));
   const service = makeService();
   await service.chooseRoot(async () => root);
   t.after(async () => { service.close(); await rm(base, { recursive: true, force: true }); });
@@ -48,7 +48,9 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
 
 test('scan persists exact matches and retries every unresolved game without rematching saved bindings', async t => {
   const f = await fixture(t);
-  const first = value(await f.service.scan());
+  const firstScan = await f.service.scan();
+  assert.match(firstScan.message ?? '', /1 of 2 unresolved games matched/);
+  const first = value(firstScan);
   assert.equal(first.games[0].bindingSource, 'automatic');
   assert.equal(first.games[0].providerRecordId, '1');
   assert.equal(first.games[1].matchStatus, 'unmatched');
@@ -96,16 +98,30 @@ test('manual search/selection persists binding, respects overrides, and survives
   check.close();
 });
 
-test('provider outage after local reconciliation preserves discoveries and limits repeated failures', async t => {
+test('provider outages after local reconciliation preserve discoveries and continue matching later games', async t => {
   const f = await fixture(t);
   f.provider.search = async () => { f.calls.push('offline'); throw new Error('fixture-secret'); };
   const result = await f.service.scan();
   const catalog = value(result);
   assert.equal(catalog.games.length, 2);
   assert.ok(catalog.games.every(game => !game.missing && game.matchStatus === 'unmatched'));
-  assert.deepEqual(f.calls, ['offline']);
-  assert.ok(result.message?.includes('Metadata unavailable'));
+  assert.deepEqual(f.calls, ['offline', 'offline']);
+  assert.ok(result.message?.includes('Some provider requests failed'));
   assert.ok(!JSON.stringify(result).includes('fixture-secret'));
+});
+
+test('a provider failure for one game does not prevent a later game from matching', async t => {
+  const f = await fixture(t);
+  f.provider.search = async query => {
+    f.calls.push(`search:${query}`);
+    if (query === 'Game A') throw new Error('fixture-secret');
+    return [{ recordId: '2', title: 'Game B' }];
+  };
+  f.provider.getGame = async recordId => ({ recordId, title: 'Game B', artwork: [] });
+  const catalog = value(await f.service.scan());
+  assert.equal(catalog.games.find(game => game.folderName === 'Game A')?.matchStatus, 'unmatched');
+  assert.equal(catalog.games.find(game => game.folderName === 'Game B')?.matchStatus, 'matched');
+  assert.deepEqual(f.calls, ['search:Game A', 'search:Game B']);
 });
 
 test('existing unresolved games can retry automatic matching without a rescan', async t => {
@@ -130,7 +146,7 @@ test('candidate selections require the latest search for that game and current s
   assert.equal((await f.service.selectMatch(id, 'other', '3')).ok, false);
   assert.equal((await f.service.selectMatch(id, 'fixture', '999')).ok, false);
   const ini = await readFile(join(f.base, 'config.ini'), 'utf8');
-  await writeFile(join(f.base, 'config.ini'), ini.replace('0.90', '0.80'));
+  await writeFile(join(f.base, 'config.ini'), ini.replace('0.75', '0.80'));
   assert.equal((await f.service.selectMatch(id, 'fixture', '3')).ok, false);
   assert.equal(value(await f.service.getCatalog()).games[1].matchStatus, 'unmatched');
 });
@@ -172,7 +188,7 @@ test('metadata settings changed during detail retrieval discard the result', asy
   value(await f.service.searchMatches(id, 'Game B'));
   f.provider.getGame = async recordId => {
     const path = join(f.base, 'config.ini');
-    await writeFile(path, (await readFile(path, 'utf8')).replace('0.90', '0.80'));
+    await writeFile(path, (await readFile(path, 'utf8')).replace('0.75', '0.80'));
     return { recordId, title: 'Game B', artwork: [] };
   };
   assert.equal((await f.service.selectMatch(id, 'fixture', '3')).ok, false);
@@ -232,6 +248,18 @@ test('maintenance removes only missing records and rebuild failure restores the 
   const original = value(await f.service.getCatalog());
   await rm(f.root, { recursive: true, force: true }); const failed = await f.service.rebuildCatalog(); assert.equal(failed.ok, false);
   assert.deepEqual(value(await f.service.getCatalog()), original);
+});
+
+test('wipe library clears catalog data but preserves configuration and installer folders', async t => {
+  const f = await fixture(t); value(await f.service.scan());
+  await mkdir(join(f.base, 'data', 'artwork'), { recursive: true });
+  await writeFile(join(f.base, 'data', 'artwork', 'cached.png'), 'cache');
+  const wiped = await f.service.wipeLibrary();
+  assert.equal(wiped.ok, true);
+  assert.equal((await f.config.getState()).status, 'ready');
+  assert.ok((await readFile(join(f.base, 'config.ini'), 'utf8')).includes('root'));
+  await assert.rejects(readdir(join(f.base, 'data')), { code: 'ENOENT' });
+  assert.deepEqual((await readdir(f.root)).sort(), ['Game A', 'Game B']);
 });
 
 test('matching IPC rejects untrusted frames, arbitrary payloads, malformed IDs and oversized queries', () => {

@@ -57,7 +57,7 @@ test('empty collections remain collections, including a prefix-only folder', asy
   });
 });
 
-test('only supported immediate archive files imply games', async () => {
+test('only supported immediate single files imply games', async () => {
   const { list, calls } = listing({
     '': [file('setup.exe'), file('Collection_File'), file('Game.iso'), directory('Collection_Files')],
     Collection_Files: [file('setup.exe'), file('Game.zip')]
@@ -66,7 +66,9 @@ test('only supported immediate archive files imply games', async () => {
   assert.equal(result.status, 'complete');
   if (result.status === 'complete') assert.deepEqual(result.games, [
     { folderName: 'Game.zip', relativePath: 'Collection_Files/Game.zip', collectionPath: 'Collection_Files' },
-    { folderName: 'Game.iso', relativePath: 'Game.iso', collectionPath: null }
+    { folderName: 'setup.exe', relativePath: 'Collection_Files/setup.exe', collectionPath: 'Collection_Files' },
+    { folderName: 'Game.iso', relativePath: 'Game.iso', collectionPath: null },
+    { folderName: 'setup.exe', relativePath: 'setup.exe', collectionPath: null }
   ]);
   assert.deepEqual(calls, ['', 'Collection_Files']);
 });
@@ -85,7 +87,8 @@ test('discovers supported archives only at the root or directly in [C] collectio
       { folderName: 'Root.ZIP', relativePath: 'Root.ZIP', collectionPath: null },
       { folderName: 'Collection.rar', relativePath: '[C] Classics/Collection.rar', collectionPath: '[C] Classics' },
       { folderName: 'Disc.iso', relativePath: '[C] Classics/Disc.iso', collectionPath: '[C] Classics' },
-      { folderName: 'Folder Member', relativePath: '[C] Classics/Folder Member', collectionPath: '[C] Classics' }
+      { folderName: 'Folder Member', relativePath: '[C] Classics/Folder Member', collectionPath: '[C] Classics' },
+      { folderName: 'setup.exe', relativePath: '[C] Classics/setup.exe', collectionPath: '[C] Classics' }
     ],
     collections: [{ folderName: '[C] Classics', displayName: 'Classics', relativePath: '[C] Classics' }]
   });

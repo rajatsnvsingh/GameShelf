@@ -62,9 +62,11 @@ test('TheGamesDB omits missing values, returns empty search/null details, and va
   assert.equal(f.calls.length, 3);
 });
 
-test('TheGamesDB rejects partial or malformed results without following response URLs', async () => {
-  for (const body of [result([game], 'https://untrusted.invalid/?apikey=fixture-key'),
-    { code: 200, data: { count: 2, games: [game] }, pages: { next: null } },
+test('TheGamesDB skips paginated searches and rejects malformed results without following response URLs', async () => {
+  const broad = fixture([json(result([game], 'https://untrusted.invalid/?apikey=fixture-key'))]);
+  assert.deepEqual(await broad.provider.search('Game A'), []);
+  assert.equal(broad.calls.length, 1);
+  for (const body of [{ code: 200, data: { count: 2, games: [game] }, pages: { next: null } },
     { code: 200, data: { count: 1, games: [game] } }, result([{ id: '7', game_title: 'Game A' }])]) {
     const f = fixture([json(body)]);
     await assert.rejects(f.provider.search('Game A'), error => error instanceof TheGamesDbError);

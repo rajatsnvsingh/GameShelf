@@ -6,12 +6,12 @@ import { applyMigrations } from './migrations.ts';
 import { CatalogRepository } from './repository.ts';
 
 /** Called by main only, after acquiring the app's single-instance lock. */
-export function openCatalog(portableBase: string, relativeLibraryRoot: string): CatalogRepository {
+export function openCatalog(portableBase: string, relativeLibraryRoot: string, allowCrossDriveRoots = false): CatalogRepository {
   if (!/^[a-z]:[\\/]/i.test(portableBase)) throw new Error('An absolute portable base is required.');
-  const root = resolveRoot(portableBase, relativeLibraryRoot);
+  const root = resolveRoot(portableBase, relativeLibraryRoot, allowCrossDriveRoots);
   const base = realpathSync(portableBase);
   // A disconnected library must not prevent opening an existing local catalog.
-  try { validateRootLayout(base, realpathSync(root)); } catch (error) {
+  try { validateRootLayout(base, realpathSync(root), join(base, 'data'), allowCrossDriveRoots); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   const data = join(base, 'data');
@@ -26,7 +26,7 @@ export function openCatalog(portableBase: string, relativeLibraryRoot: string): 
     db.pragma('foreign_keys = ON');
     db.pragma('journal_mode = DELETE');
     db.pragma('synchronous = FULL');
-    const rootKey = win32.relative(portableBase, root).replaceAll('\\', '/').toLowerCase();
+    const rootKey = (win32.isAbsolute(relativeLibraryRoot) ? win32.normalize(relativeLibraryRoot) : win32.relative(portableBase, root)).replaceAll('\\', '/').toLowerCase();
     db.transaction(() => {
       applyMigrations(db);
       const existing = db.prepare('SELECT library_root AS root FROM catalog WHERE id = 1').get() as { root: string } | undefined;

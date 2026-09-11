@@ -5,7 +5,7 @@ import { catalogPath } from '../database/identity.ts';
 import { isSupportedGameArchive } from '../library/scanner.ts';
 
 /** Validates a discovered directory/archive without enumerating its contents. */
-export async function resolveInstallFolder(root: string, relativePath: string): Promise<string> {
+export async function resolveInstallFolder(root: string, relativePath: string, container = false): Promise<string> {
   const path = catalogPath(relativePath);
   if (path.parts.length > 2) throw new Error('Invalid game path depth.');
   const canonicalRoot = await realpath(root);
@@ -25,5 +25,5 @@ export async function resolveInstallFolder(root: string, relativePath: string): 
     throw new Error('Install location is not a supported archive.');
   }
   if (await realpath(root) !== canonicalRoot) throw new Error('Library root changed.');
-  return path.parts.at(-1)!.toLowerCase().endsWith('.iso') ? parent : target;
+  return info.isFile() && (container || path.parts.at(-1)!.toLowerCase().endsWith('.iso')) ? parent : target;
 }

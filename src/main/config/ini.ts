@@ -38,7 +38,7 @@ export function withDefaults(ini: Ini): Ini {
   const defaults: Ini = {
     app: { version: '1' },
     library: { root: '', collectionPrefix: '[C]', showCollectionGames: 'true' },
-    metadata: { matchingThreshold: '0.90', providerOrder: 'igdb,thegamesdb,steamgriddb' },
+    metadata: { matchingThreshold: '0.75', greedyMatch: 'false', providerOrder: 'igdb,thegamesdb,steamgriddb' },
     view: { defaultSort: 'title' }
   };
   for (const [name, entries] of Object.entries(defaults)) {
@@ -51,6 +51,7 @@ export function withDefaults(ini: Ini): Ini {
   }
   if (!['true', 'false'].includes(ini.library.showCollectionGames)) throw new Error('Invalid collection visibility.');
   if (!/^(0(?:\.\d+)?|1(?:\.0+)?)$/.test(ini.metadata.matchingThreshold)) throw new Error('Invalid matching threshold.');
+  if (!['true', 'false'].includes(ini.metadata.greedyMatch)) throw new Error('Invalid greedy matching setting.');
   if (!['title', 'releaseDate'].includes(ini.view.defaultSort)) throw new Error('Invalid default sort.');
   return ini;
 }

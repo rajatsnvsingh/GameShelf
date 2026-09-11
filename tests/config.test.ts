@@ -23,7 +23,7 @@ test('relative roots relocate across drive letters and preserve spaces and Unico
   assert.equal(relativeRoot('E:\\GameShelf', 'e:\\Games'), '../Games');
 });
 
-test('rejects cross-drive, drive-qualified, UNC, app-containing and data-overlapping roots', () => {
+test('release roots reject cross-drive, drive-qualified, UNC, app-containing and data-overlapping roots', () => {
   for (const relative of ['E:\\Games', 'E:Games', '\\\\server\\Games', '/Games', '.', '..', 'data', 'data/artwork', 'Games/../../..']) {
     assert.throws(() => resolveRoot('E:\\GameShelf', relative), relative);
   }
@@ -31,12 +31,20 @@ test('rejects cross-drive, drive-qualified, UNC, app-containing and data-overlap
   assert.equal(resolveRoot('E:\\GameShelf', 'database-games'), 'E:\\GameShelf\\database-games');
 });
 
+test('development roots may use a local absolute path on another drive', () => {
+  assert.equal(relativeRoot('E:\\GameShelf', 'G:\\Games', true), 'G:/Games');
+  assert.equal(resolveRoot('E:\\GameShelf', 'G:/Games', true), 'G:\\Games');
+  assert.throws(() => resolveRoot('E:\\GameShelf', 'G:Games', true));
+  assert.throws(() => resolveRoot('E:\\GameShelf', '\\\\server\\Games', true));
+});
+
 test('INI defaults and string round trips preserve punctuation and future secrets', () => {
   const ini = withDefaults(parseIni('\uFEFF; comment\n[library]\nroot=Jeux 日本語\n[provider.future]\nkey="fake;#=token"\n'));
   assert.equal(ini.library.collectionPrefix, '[C]');
   assert.equal(ini.library.showCollectionGames, 'true');
   assert.equal(ini.metadata.providerOrder, 'igdb,thegamesdb,steamgriddb');
-  assert.equal(ini.metadata.matchingThreshold, '0.90');
+  assert.equal(ini.metadata.matchingThreshold, '0.75');
+  assert.equal(ini.metadata.greedyMatch, 'false');
   assert.deepEqual(parseIni(writeIni(ini)), ini);
 });
 
@@ -45,16 +53,19 @@ test('settings persist durable values while returning only redacted provider sta
   t.after(() => rm(base, { recursive: true, force: true }));
   const service = new ConfigService(base);
   const before = await service.getSettings();
-  await service.saveSettings({ collectionPrefix: 'Set_', showCollectionGames: false, matchingThreshold: 0.75, defaultSort: 'releaseDate', providerOrder: ['thegamesdb', 'igdb'], providers: { igdb: { enabled: true, configured: false }, thegamesdb: { enabled: true, configured: false }, steamgriddb: { enabled: false, configured: false } }, credentials: { igdbClientId: 'id', igdbClientSecret: 'secret', thegamesdbApiKey: 'key' } });
+  await service.saveSettings({ collectionPrefix: 'Set_', showCollectionGames: false, matchingThreshold: 0.75, greedyMatch: true, defaultSort: 'releaseDate', providerOrder: ['thegamesdb', 'igdb'], providers: { igdb: { enabled: true, configured: false }, thegamesdb: { enabled: true, configured: false }, steamgriddb: { enabled: false, configured: false } }, credentials: { igdbClientId: 'id', igdbClientSecret: 'secret', thegamesdbApiKey: 'key' } });
   const after = await service.getSettings();
-  assert.equal(before.providers.igdb.configured, false); assert.equal(after.collectionPrefix, 'Set_'); assert.equal(after.showCollectionGames, false); assert.equal(after.matchingThreshold, 0.75); assert.deepEqual(after.providerOrder, ['thegamesdb', 'igdb']); assert.equal(after.providers.igdb.configured, true); assert.ok(!JSON.stringify(after).includes('secret'));
+  assert.equal(before.providers.igdb.configured, false); assert.equal(after.collectionPrefix, 'Set_'); assert.equal(after.showCollectionGames, false); assert.equal(after.matchingThreshold, 0.75); assert.equal(after.greedyMatch, true); assert.deepEqual(after.providerOrder, ['thegamesdb', 'igdb']); assert.equal(after.providers.igdb.configured, true); assert.ok(!JSON.stringify(after).includes('secret'));
+  await service.saveSettings({ ...after, providers: after.providers, credentials: { igdbClientId: '', igdbClientSecret: '', thegamesdbApiKey: '', steamgriddbApiKey: '' } });
+  const stored = parseIni(await readFile(join(base, 'config.ini'), 'utf8'));
+  assert.equal(stored['provider.igdb'].clientId, 'id'); assert.equal(stored['provider.igdb'].clientSecret, 'secret'); assert.equal(stored['provider.thegamesdb'].apiKey, 'key');
   await assert.rejects(() => service.saveSettings({ ...after, collectionPrefix: '../bad', providers: after.providers }));
 });
 
 test('malformed INI and invalid settings are rejected without including values in errors', () => {
   for (const text of ['junk', '[bad', '[x]\na=1\na=2', '[x]\n[x]', '[x]\na="fake-secret',
     '[app]\nversion=2', '[library]\ncollectionPrefix=', '[library]\nshowCollectionGames=yes',
-    '[metadata]\nmatchingThreshold=2', '[view]\ndefaultSort=unknown']) {
+    '[metadata]\nmatchingThreshold=2', '[metadata]\ngreedyMatch=yes', '[view]\ndefaultSort=unknown']) {
     assert.throws(() => withDefaults(parseIni(text)), error => error instanceof Error && !error.message.includes('fake-secret'));
   }
 });
@@ -134,16 +145,15 @@ test('relocating the entire portable folder keeps the saved library usable', asy
   assert.equal(state.root, join(relocated, 'Jeux 日本語'));
 });
 
-test('existing catalog prevents switching libraries and preserves config', async t => {
+test('changing libraries preserves the existing catalog until an explicit rebuild', async t => {
   const { base, games, file, service } = await fixture(t);
   await service.chooseRoot(async () => games);
-  const original = await readFile(file, 'utf8');
   await mkdir(join(base, 'data'));
   await writeFile(join(base, 'data', 'library.db'), 'fixture');
   const other = join(base, 'Other');
   await mkdir(other);
-  assert.match((await service.chooseRoot(async () => other)).message, /rebuild/);
-  assert.equal(await readFile(file, 'utf8'), original);
+  assert.match((await service.chooseRoot(async () => other)).message, /Rebuild catalog/);
+  assert.equal((await new ConfigService(base).getState()).root, other);
   assert.equal((await service.chooseRoot(async () => games.toUpperCase())).status, 'ready');
 });
 

@@ -35,11 +35,11 @@ function validCandidate(candidate: SearchCandidate): boolean {
 export async function resolveMetadata(
   query: string,
   providers: readonly ProviderEntry[],
-  options: { threshold?: number; binding?: ProviderBinding | null } = {}
+  options: { threshold?: number; greedyMatch?: boolean; binding?: ProviderBinding | null } = {}
 ): Promise<Resolution> {
   // Normal scans and priority changes must not rematch any existing binding, even offline.
   if (options.binding) return { status: 'preserved', binding: { ...options.binding } };
-  const threshold = options.threshold ?? 0.90;
+  const threshold = options.threshold ?? 0.75;
   if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error('Invalid matching threshold.');
   const attempts: MatchAttempt[] = [];
   if (!query.trim()) return { status: 'unresolved', attempts };
@@ -62,13 +62,16 @@ export async function resolveMetadata(
         if (previous && (previous.title !== candidate.title || previous.releaseYear !== candidate.releaseYear)) throw new Error('Conflicting search records.');
         unique.set(candidate.recordId, candidate);
       }
-      const ranked = [...unique.values()].map(candidate => ({ candidate, score: titleConfidence(query, candidate.title) }))
-        .sort((a, b) => b.score - a.score || (a.candidate.recordId < b.candidate.recordId ? -1 : 1));
-      const best = ranked[0];
+      const scored = [...unique.values()].map(candidate => ({ candidate, score: titleConfidence(query, candidate.title) }));
+      const ranked = [...scored]
+        // Stable sort preserves provider ranking among equal scores.
+        .sort((a, b) => b.score - a.score);
+      // Providers already rank their search results. Greedy mode deliberately trusts that order.
+      const best = options.greedyMatch ? scored[0] : ranked[0];
       if (!best) { record('no-results'); continue; }
-      if (best.score === 0 || best.score < threshold) { record('low-confidence'); continue; }
-      // A runner-up within 0.10 is ambiguous, even if it falls below the threshold.
-      if (ranked[1] && best.score - ranked[1].score < 0.10) { record('ambiguous'); continue; }
+      if (!options.greedyMatch && (best.score === 0 || best.score < threshold)) { record('low-confidence'); continue; }
+      // An exact normalized title follows provider ranking; approximate matches still require a clear lead.
+      if (!options.greedyMatch && best.score < 1 && ranked[1] && best.score - ranked[1].score < 0.10) { record('ambiguous'); continue; }
       const details = await provider.getGame(best.candidate.recordId);
       if (details === null) { record('not-found'); continue; }
       if (!validCandidate(details) || details.recordId !== best.candidate.recordId ||

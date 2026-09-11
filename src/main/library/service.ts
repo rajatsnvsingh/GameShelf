@@ -1,5 +1,5 @@
-import { rename, stat, unlink } from 'node:fs/promises';
-import { join, win32 } from 'node:path';
+import { lstat, rename, rm, stat, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { ArtworkPreview, ArtworkPreviewItem, CatalogView, LibraryState, OperationResult, MatchSearch, MatchCandidate, MatchingStatus } from '../../shared/api.ts';
 import { ConfigService } from '../config/service.ts';
 import { openCatalog } from '../database/catalog.ts';
@@ -9,6 +9,7 @@ import { createScanReader, type ScanReader } from './directory-reader.ts';
 import { scanLibrary } from './scanner.ts';
 import { providerSession, configuredProviders } from '../metadata/service.ts';
 import { resolveMetadata } from '../metadata/resolver.ts';
+import { metadataTitle } from '../metadata/title.ts';
 import { displayMetadata } from '../metadata/display.ts';
 import { ArtworkCache } from '../artwork/cache.ts';
 import type { GameDetails, ProviderEntry } from '../metadata/provider.ts';
@@ -50,7 +51,7 @@ export class LibraryService {
 
   private async repositoryFor(settings: Settings, create = false): Promise<CatalogRepository | null> {
     if (this.closed) throw new Error('Library closed.');
-    const key = win32.relative(this.base, settings.root).toLowerCase();
+    const key = settings.relativeRoot.replaceAll('\\', '/').toLowerCase();
     if (this.repository && this.repositoryRoot !== key) {
       this.repository.close();
       this.repository = null;
@@ -61,7 +62,7 @@ export class LibraryService {
         catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
       }
       if (this.closed) throw new Error('Library closed.');
-      this.repository = openCatalog(this.base, settings.relativeRoot);
+      this.repository = openCatalog(this.base, settings.relativeRoot, this.config.allowCrossDriveRoots);
       this.repositoryRoot = key;
     }
     return this.repository;
@@ -71,7 +72,7 @@ export class LibraryService {
     return {
       games: repo?.listGames().map(({ id, folderName, relativePath, collectionId, addedAt, lastSeenAt, missing,
         matchStatus, bindingSource, providerId, providerRecordId, providerMetadata, manualOverrides }) =>
-        ({ id, folderName, relativePath, collectionId, addedAt, lastSeenAt, missing, matchStatus, bindingSource, providerId, providerRecordId,
+        ({ id, folderName: metadataTitle(folderName), displayName: metadataTitle(folderName), relativePath, collectionId, addedAt, lastSeenAt, missing, matchStatus, bindingSource, providerId, providerRecordId,
           metadata: displayMetadata(providerMetadata, manualOverrides), ...Object.fromEntries(repo.listArtwork(id).map(item =>
             [item.kind === 'cover' ? 'coverUrl' : 'backgroundUrl', `gameshelf-artwork://local/${item.localPath}`])) })) ?? [],
       collections: repo?.listCollections().map(({ id, folderName, displayName, missing }) => ({ id, folderName, displayName, missing })) ?? []
@@ -84,7 +85,7 @@ export class LibraryService {
         const settings = await this.config.getLibrarySettings();
         return { ok: true, value: this.view(settings ? await this.repositoryFor(settings) : null) };
       });
-    } catch { return { ok: false, message: 'Cannot read the catalog. Check config.ini and the data folder; a different library requires a rebuild.' }; }
+    } catch { return { ok: false, message: 'Cannot read the catalog. Check config.ini and the data folder. If you selected a different library, open Settings and choose Rebuild catalog.' }; }
   }
 
   async chooseRoot(pick: () => Promise<string | undefined>): Promise<LibraryState> {
@@ -130,18 +131,20 @@ export class LibraryService {
             this.matchingStatus = { phase: 'matching', attempted: 0, total: unresolved.length, matched, message: unresolved.length ? 'Matching unresolved games…' : 'No unresolved games to match.' };
             for (const game of unresolved) {
               this.matchingStatus = { ...this.matchingStatus, attempted: this.matchingStatus.attempted + 1, gameName: game.folderName };
-              const resolution = await resolveMetadata(game.folderName, metadataProviders, { threshold: session.threshold });
+              const title = metadataTitle(game.folderName);
+              const resolution = await resolveMetadata(title, metadataProviders, { threshold: session.threshold, greedyMatch: session.greedyMatch });
               await this.verifySettings(settings);
               if (metadataSettings !== await this.matchSettings()) throw new Error('Metadata settings changed.');
               if (resolution.status === 'matched') {
                 if (repo!.saveMatch(game.id, resolution.binding, resolution.details)) {
                   matched++;
                   this.matchingStatus = { ...this.matchingStatus, matched };
-                  await this.cacheArtwork(game.id, game.folderName, resolution.details, resolution.binding.providerId, session.providers, repo!);
+                  await this.cacheArtwork(game.id, title, resolution.details, resolution.binding.providerId, session.providers, repo!);
                 }
               } else if ('attempts' in resolution && resolution.attempts.some(attempt => attempt.outcome === 'error')) {
-                metadataNotice = ' Metadata unavailable; use Needs Matching to retry.';
-                break;
+                // A provider failure applies only to this game. Keep the local scan and the rest of
+                // the matching pass moving; unresolved games remain available for a later retry.
+                metadataNotice = ' Some provider requests failed; unresolved games can be retried from Needs Matching.';
               }
             }
           } else {
@@ -151,10 +154,16 @@ export class LibraryService {
           if (this.closed) return { ok: false, message: 'Library closed after the local scan was saved.' };
           metadataNotice = ' Metadata unavailable; the local scan was saved. Use Needs Matching to retry.';
         }
-        this.matchingStatus = { ...this.matchingStatus, phase: 'complete', matched, message: metadataNotice ? 'Matching stopped because a provider request failed.' : `${matched} of ${this.matchingStatus.total} unresolved games matched.` };
-        return { ok: true, value: this.view(repo), message: `Scan complete: ${result.games.length} games and ${result.collections.length} collections found. ${matched} matched.${metadataNotice}` };
+        this.matchingStatus = { ...this.matchingStatus, phase: 'complete', matched, message: metadataNotice ? `${matched} of ${this.matchingStatus.total} unresolved games matched. Some provider requests failed.` : `${matched} of ${this.matchingStatus.total} unresolved games matched.` };
+        return { ok: true, value: this.view(repo), message: `Scan complete: ${result.games.length} games and ${result.collections.length} collections found. ${matched} of ${this.matchingStatus.total} unresolved games matched.${metadataNotice}` };
       });
-    } catch { this.matchingStatus = { ...this.matchingStatus, phase: 'complete', message: 'Scan or matching could not finish.' }; return { ok: false, message: 'Scan could not finish. Check the library, configuration, and data folder, then retry. Existing catalog records were preserved.' }; }
+    } catch (error) {
+      this.matchingStatus = { ...this.matchingStatus, phase: 'complete', message: 'Scan or matching could not finish.' };
+      if (error instanceof Error && error.message === 'Catalog belongs to a different library; an explicit rebuild is required.') {
+        return { ok: false, message: 'This catalog belongs to the previously selected library. Open Settings and choose Rebuild catalog to replace it with the selected library.' };
+      }
+      return { ok: false, message: 'Scan could not finish. Check the library, configuration, and data folder, then retry. Existing catalog records were preserved.' };
+    }
   }
 
   async openInstallFolder(gameId: number): Promise<OperationResult<null>> {
@@ -173,6 +182,24 @@ export class LibraryService {
         return error ? { ok: false, message: 'Windows could not open the install location.' } : { ok: true, value: null, message: 'Install location opened.' };
       });
     } catch { return { ok: false, message: 'The install location is missing, inaccessible, linked, or no longer a recognized folder/archive in this library.' }; }
+  }
+
+  async openContainerFolder(gameId: number): Promise<OperationResult<null>> {
+    try {
+      return await this.run(async () => {
+        if (!Number.isSafeInteger(gameId) || gameId <= 0) return { ok: false, message: 'Invalid game ID.' };
+        const settings = await this.config.getLibrarySettings();
+        if (!settings) return { ok: false, message: 'Choose your library folder first.' };
+        const repo = await this.repositoryFor(settings);
+        const game = repo?.listGames().find(item => item.id === gameId);
+        if (!game) return { ok: false, message: 'Game not found in the current catalog.' };
+        if ((await this.config.getState()).status !== 'ready') return { ok: false, message: 'The library folder is unavailable. Reconnect the drive and retry.' };
+        const path = await resolveInstallFolder(settings.root, game.relativePath, true);
+        await this.verifySettings(settings);
+        const error = await this.openDirectory(path);
+        return error ? { ok: false, message: 'Windows could not open the container folder.' } : { ok: true, value: null, message: 'Container folder opened.' };
+      });
+    } catch { return { ok: false, message: 'The container folder is missing, inaccessible, linked, or no longer recognized in this library.' }; }
   }
 
   private async matchSettings(): Promise<string> {
@@ -258,11 +285,12 @@ export class LibraryService {
         const session = await this.providers();
         const metadataProviders = session.providers.filter(entry => entry.provider.capabilities.metadata !== false);
         if (!metadataProviders.some(entry => entry.enabled && entry.configured)) return { ok: false, message: 'Enable and configure a metadata provider in config.ini first.' };
-        const result = await resolveMetadata(game.folderName, metadataProviders, { threshold: session.threshold });
+        const title = metadataTitle(game.folderName);
+        const result = await resolveMetadata(title, metadataProviders, { threshold: session.threshold, greedyMatch: session.greedyMatch });
         await this.verifyMatchContext(key);
         if (result.status === 'matched') {
           repo.saveMatch(gameId, result.binding, result.details);
-          await this.cacheArtwork(gameId, game.folderName, result.details, result.binding.providerId, session.providers, repo);
+          await this.cacheArtwork(gameId, title, result.details, result.binding.providerId, session.providers, repo);
           return { ok: true, value: this.view(repo), message: 'Metadata matched and saved.' };
         }
         return { ok: true, value: this.view(repo), message: result.status === 'unresolved' && result.attempts.some(attempt => attempt.outcome === 'error')
@@ -331,6 +359,10 @@ export class LibraryService {
   async saveOverrides(gameId: number, overrides: Record<string, unknown>): Promise<OperationResult<CatalogView>> {
     try { return await this.run(async () => { const { repo } = await this.matchContext(gameId); if (!repo.saveManualOverrides(gameId, overrides)) throw new Error(); return { ok: true, value: this.view(repo), message: 'Manual metadata saved.' }; }); } catch { return { ok: false, message: 'Could not save manual metadata. Existing data was preserved.' }; }
   }
+  async clearMetadata(gameId: number): Promise<OperationResult<CatalogView>> {
+    try { return await this.run(async () => { const { repo } = await this.matchContext(gameId); if (!repo.clearMetadata(gameId)) throw new Error(); this.candidates = null; this.artworkPreview = null; return { ok: true, value: this.view(repo), message: 'Metadata cleared. This game now needs matching.' }; }); }
+    catch { return { ok: false, message: 'Could not clear metadata. Existing data was preserved.' }; }
+  }
   async pasteArtwork(gameId: number, kind: 'cover' | 'background', png: Uint8Array): Promise<OperationResult<CatalogView>> {
     try { return await this.run(async () => { const { repo } = await this.matchContext(gameId); const path = await this.artwork.saveManualPng(gameId, png); if (!repo.saveManualArtwork(gameId, kind, path)) throw new Error(); return { ok: true, value: this.view(repo), message: 'Custom artwork saved.' }; }); } catch { return { ok: false, message: 'Clipboard does not contain a usable image; existing artwork was preserved.' }; }
   }
@@ -344,7 +376,7 @@ export class LibraryService {
       const details = await entry.provider.getGame(game.providerRecordId);
       if (!details || details.recordId !== game.providerRecordId) throw new Error();
       await this.verifyMatchContext(key);
-      const staged = await this.stageArtwork(gameId, game.folderName, details, game.providerId, session.providers, steamGridDbId);
+      const staged = await this.stageArtwork(gameId, metadataTitle(game.folderName), details, game.providerId, session.providers, steamGridDbId);
       await this.verifyMatchContext(key);
       if (!staged.length) return { ok: false, message: 'No new artwork was available to preview.' };
       const saved = new Map(repo.listArtwork(gameId).map(item => [item.kind, item]));
@@ -371,7 +403,7 @@ export class LibraryService {
     }); } catch { return { ok: false, message: 'Artwork confirmation expired or failed. Existing artwork was unchanged.' }; }
   }
   async replaceAllRescrape(gameId: number): Promise<OperationResult<CatalogView>> {
-    try { return await this.run(async () => { const { repo, game, key } = await this.matchContext(gameId); if (!game.providerId || !game.providerRecordId) throw new Error(); const session = await this.providers(); const entry = session.providers.find(item => item.provider.id === game.providerId && item.enabled && item.configured); if (!entry) throw new Error(); const details = await entry.provider.getGame(game.providerRecordId); if (!details) throw new Error(); await this.verifyMatchContext(key); if (!repo.refreshBoundMatch(gameId, game.providerId, game.providerRecordId, details)) throw new Error(); repo.clearManualWork(gameId); await this.cacheArtwork(gameId, game.folderName, details, game.providerId, session.providers, repo); return { ok: true, value: this.view(repo), message: 'Provider data replaced all manual metadata and artwork.' }; }); } catch { return { ok: false, message: 'Rescrape failed; manual metadata and artwork were preserved.' }; }
+    try { return await this.run(async () => { const { repo, game, key } = await this.matchContext(gameId); if (!game.providerId || !game.providerRecordId) throw new Error(); const session = await this.providers(); const entry = session.providers.find(item => item.provider.id === game.providerId && item.enabled && item.configured); if (!entry) throw new Error(); const details = await entry.provider.getGame(game.providerRecordId); if (!details) throw new Error(); await this.verifyMatchContext(key); if (!repo.refreshBoundMatch(gameId, game.providerId, game.providerRecordId, details)) throw new Error(); repo.clearManualWork(gameId); await this.cacheArtwork(gameId, metadataTitle(game.folderName), details, game.providerId, session.providers, repo); return { ok: true, value: this.view(repo), message: 'Provider data replaced all manual metadata and artwork.' }; }); } catch { return { ok: false, message: 'Rescrape failed; manual metadata and artwork were preserved.' }; }
   }
   async deleteMissing(): Promise<OperationResult<CatalogView>> {
     try { return await this.run(async () => { const settings = await this.config.getLibrarySettings(); const repo = settings ? await this.repositoryFor(settings) : null; if (!repo) return { ok: false, message: 'There is no catalog to maintain.' }; const count = repo.deleteMissing(); return { ok: true, value: this.view(repo), message: `${count} missing catalog record${count === 1 ? '' : 's'} removed. Installer folders were not changed.` }; }); } catch { return { ok: false, message: 'Could not remove missing catalog records.' }; }
@@ -386,6 +418,19 @@ export class LibraryService {
       try { const repo = await this.repositoryFor(settings, true); repo!.reconcile(scan); await unlink(backup); return { ok: true, value: this.view(repo), message: 'Catalog rebuilt from the current library. Prior matches, overrides, and artwork associations were removed; installer folders were not changed.' }; }
       catch (error) { try { const reopened = this.repository as CatalogRepository | null; reopened?.close(); } catch {} this.repository = null; try { await unlink(database); } catch {} await rename(backup, database); throw error; }
     }); } catch { return { ok: false, message: 'Catalog rebuild failed; the previous catalog was restored.' }; }
+  }
+  async wipeLibrary(): Promise<OperationResult<null>> {
+    try { return await this.run(async () => {
+      this.repository?.close(); this.repository = null; this.repositoryRoot = '';
+      this.candidates = null; this.artworkPreview = null;
+      const data = join(this.base, 'data');
+      try {
+        const info = await lstat(data);
+        if (info.isSymbolicLink()) await unlink(data); else await rm(data, { recursive: true, force: true });
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      this.matchingStatus = { phase: 'idle', attempted: 0, total: 0, matched: 0 };
+      return { ok: true, value: null, message: 'Library catalog data was wiped. Settings, credentials, game folders, and archives were not changed.' };
+    }); } catch { return { ok: false, message: 'Could not wipe GameShelf data. Your game folders were not changed.' }; }
   }
 
   close(): void {

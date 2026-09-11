@@ -28,16 +28,19 @@
   let candidateGameId = $state<number | null>(null);
   let detailModal = $state<'matching' | 'manual' | 'artwork' | null>(null);
   let detailMenu = $state(false);
+  let collectionBack = $state<{ page: 'home' | 'games' | 'collections' | 'settings'; collectionId: number | null; needsMatching: boolean } | null>(null);
   const collection = $derived(catalog.collections.find(item => item.id === collectionId));
-  const games = $derived(catalog.games.filter(game => (!needsMatching || game.matchStatus === 'unmatched') && (collectionId === null || game.collectionId === collectionId) && (collectionFilter === 'all' || collectionFilter === 'none' ? collectionFilter === 'all' || game.collectionId === null : game.collectionId === Number(collectionFilter)) && (!yearFilter || String(game.metadata.releaseYear ?? '') === yearFilter) && (!genreFilter || game.metadata.genres?.includes(genreFilter)) && (!titleFilter || (game.metadata.title || game.folderName).toLocaleLowerCase().includes(titleFilter.toLocaleLowerCase()))).sort((a, b) => sort === 'releaseDate' ? (b.metadata.releaseYear ?? -1) - (a.metadata.releaseYear ?? -1) || (a.metadata.title || a.folderName).localeCompare(b.metadata.title || b.folderName) : (a.metadata.title || a.folderName).localeCompare(b.metadata.title || b.folderName)));
+  const games = $derived(catalog.games.filter(game => (!needsMatching || game.matchStatus === 'unmatched') && (collectionId === null || game.collectionId === collectionId) && (collectionFilter === 'all' || collectionFilter === 'none' ? collectionFilter === 'all' || game.collectionId === null : game.collectionId === Number(collectionFilter)) && (!yearFilter || String(game.metadata.releaseYear ?? '') === yearFilter) && (!genreFilter || game.metadata.genres?.includes(genreFilter)) && (!titleFilter || (game.metadata.title || game.displayName).toLocaleLowerCase().includes(titleFilter.toLocaleLowerCase()))).sort((a, b) => sort === 'releaseDate' ? (b.metadata.releaseYear ?? -1) - (a.metadata.releaseYear ?? -1) || (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName) : (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName)));
   const years = $derived([...new Set(catalog.games.flatMap(game => game.metadata.releaseYear ? [game.metadata.releaseYear] : []))].sort((a, b) => b - a));
   const genres = $derived([...new Set(catalog.games.flatMap(game => game.metadata.genres ?? []))].sort((a, b) => a.localeCompare(b)));
   const selected = $derived(catalog.games.find(game => game.id === selectedId));
+  const selectedCollection = $derived(selected?.collectionId === null || selected?.collectionId === undefined ? undefined : catalog.collections.find(item => item.id === selected.collectionId));
+  const selectedIsSingleFile = $derived(Boolean(selected && /\.(zip|rar|iso|exe)$/iu.test(selected.relativePath)));
   const searchableProviders = $derived((settings?.providerOrder ?? []).filter(id => id !== 'steamgriddb' && settings?.providers[id]?.enabled && settings.providers[id]?.configured));
   const recentlyAdded = $derived.by(() => {
     const firstAddedAt = catalog.games.reduce((earliest, game) => !earliest || game.addedAt < earliest ? game.addedAt : earliest, '');
     return catalog.games.filter(game => firstAddedAt && game.addedAt > firstAddedAt)
-      .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || (a.metadata.title || a.folderName).localeCompare(b.metadata.title || b.folderName));
+      .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName));
   });
   const homeGroups = $derived.by(() => {
     const groups = new Map<string, CatalogView['games']>();
@@ -49,7 +52,7 @@
     }
     return [...groups.entries()].sort(([a], [b]) => homeGroupBy === 'decade'
       ? (a === 'Unknown release date' ? 1 : b === 'Unknown release date' ? -1 : b.localeCompare(a))
-      : a.localeCompare(b)).map(([label, items]) => ({ label, games: items.sort((a, b) => (a.metadata.title || a.folderName).localeCompare(b.metadata.title || b.folderName)) }));
+      : a.localeCompare(b)).map(([label, items]) => ({ label, games: items.sort((a, b) => (a.metadata.title || a.displayName).localeCompare(b.metadata.title || b.displayName)) }));
   });
   const collectionName = (id: number | null) => {
     const item = catalog.collections.find(item => item.id === id);
@@ -58,12 +61,27 @@
   const date = (value: string) => new Date(value).toLocaleString();
   function selectGame(id: number) {
     selectedId = id;
-    query = catalog.games.find(game => game.id === id)?.folderName ?? '';
+    query = catalog.games.find(game => game.id === id)?.displayName ?? '';
     candidates = []; candidateGameId = null; detailMenu = false;
+  }
+  function openCollection(id: number) {
+    collectionBack = { page, collectionId, needsMatching };
+    page = 'collections'; needsMatching = false; collectionId = id;
+  }
+  function backFromCollection() {
+    const previous = collectionBack;
+    collectionBack = null;
+    page = previous?.page ?? 'collections';
+    collectionId = previous?.collectionId ?? null;
+    needsMatching = previous?.needsMatching ?? false;
+  }
+  function openCollectionsOverview() {
+    collectionBack = null;
+    page = 'collections'; needsMatching = false; collectionId = null;
   }
   function openMatching() {
     if (!selected) return;
-    query = selected.metadata.title || selected.folderName;
+    query = selected.metadata.title || selected.displayName;
     searchProvider = searchableProviders[0] ?? '';
     candidates = []; candidateGameId = null;
     detailMenu = false;
@@ -112,7 +130,7 @@
       library = await (choose ? window.gameShelf.chooseLibraryRoot() : window.gameShelf.getLibraryState());
       const result = await window.gameShelf.getCatalog();
       if (result.ok) catalog = result.value;
-      else notice = result.message;
+      else notice = library?.message.includes('Rebuild catalog') ? library.message : result.message;
     } catch { notice = 'Unable to load the library. Please retry.'; }
     finally { busy = false; }
   }
@@ -162,6 +180,20 @@
     } catch { notice = 'Unable to open the install location. Please retry.'; }
     finally { busy = false; }
   }
+  async function openContainerFolder() {
+    if (!selected) return;
+    busy = true;
+    try { const result = await window.gameShelf.openContainerFolder(selected.id); notice = result.message ?? 'Container folder opened.'; }
+    catch { notice = 'Unable to open the container folder. Please retry.'; }
+    finally { busy = false; }
+  }
+  async function clearMetadata() {
+    if (!selected || !confirm('Clear this game’s provider and manual metadata? It will return to Needs Matching. Custom pasted artwork is kept.')) return;
+    busy = true;
+    try { const result = await window.gameShelf.clearMetadata(selected.id); if (result.ok) { catalog = result.value; candidates = []; candidateGameId = null; detailModal = null; } notice = result.message ?? ''; }
+    catch { notice = 'Could not clear metadata. Please retry.'; }
+    finally { busy = false; }
+  }
 
   onMount(() => {
     window.gameShelf.getAppInfo().then(info => { version = info.version; }).catch(() => { notice = 'Unable to read app information.'; });
@@ -183,7 +215,7 @@
   <nav class="pages" aria-label="Library views">
     <button class:active={page === 'home'} aria-pressed={page === 'home'} onclick={() => { page = 'home'; needsMatching = false; collectionId = null; }}>⌂ <span>Home</span></button>
     <button class:active={page === 'games'} aria-pressed={page === 'games'} onclick={() => { page = 'games'; needsMatching = false; collectionId = null; }}>▦ <span>All Games</span></button>
-    <button class:active={page === 'collections'} aria-pressed={page === 'collections'} onclick={() => { page = 'collections'; needsMatching = false; collectionId = null; }}>▤ <span>Collections</span></button>
+    <button class:active={page === 'collections'} aria-pressed={page === 'collections'} onclick={openCollectionsOverview}>▤ <span>Collections</span></button>
     <button class:active={page === 'settings'} aria-pressed={page === 'settings'} onclick={() => page = 'settings'}>⚙ <span>Settings</span></button>
   </nav>
 
@@ -202,10 +234,10 @@
 
   {#if page === 'settings' && settings}
     <section class="setup settings-panel" aria-label="Settings"><h2>Settings</h2><p class="muted">Credentials are never shown after saving.</p>
-      <form class="settings-form" onsubmit={event => { event.preventDefault(); void (async () => { const form = event.currentTarget; const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value; const result = await window.gameShelf.saveSettings({ collectionPrefix: get('prefix'), showCollectionGames: (form.elements.namedItem('visible') as HTMLInputElement).checked, matchingThreshold: Number(get('threshold')), defaultSort: get('sort') as 'title' | 'releaseDate', providerOrder: get('order').split(',').map(id => id.trim()).filter(Boolean), providers: { igdb: { enabled: (form.elements.namedItem('igdb') as HTMLInputElement).checked, configured: settings!.providers.igdb.configured }, thegamesdb: { enabled: (form.elements.namedItem('thegamesdb') as HTMLInputElement).checked, configured: settings!.providers.thegamesdb.configured }, steamgriddb: { enabled: (form.elements.namedItem('steamgriddb') as HTMLInputElement).checked, configured: settings!.providers.steamgriddb.configured } }, credentials: { igdbClientId: get('igdb-client'), igdbClientSecret: get('igdb-secret'), thegamesdbApiKey: get('thegamesdb-key'), steamgriddbApiKey: get('steamgriddb-key') } }); if (result.ok) settings = result.value; notice = result.ok ? 'Settings saved.' : result.message; })(); }}>
-        <label>Collection prefix <input name="prefix" value={settings.collectionPrefix} /></label><label><input name="visible" type="checkbox" checked={settings.showCollectionGames} /> Show collection games in main library</label><label>Matching threshold <input name="threshold" type="number" min="0" max="1" step="0.01" value={settings.matchingThreshold} /></label><label>Default sort <select name="sort" value={settings.defaultSort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label><label>Provider order <input name="order" value={settings.providerOrder.join(',')} /></label>
+      <form class="settings-form" onsubmit={event => { event.preventDefault(); void (async () => { const form = event.currentTarget; const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value; const result = await window.gameShelf.saveSettings({ collectionPrefix: get('prefix'), showCollectionGames: (form.elements.namedItem('visible') as HTMLInputElement).checked, matchingThreshold: Number(get('threshold')), greedyMatch: (form.elements.namedItem('greedy-match') as HTMLInputElement).checked, defaultSort: get('sort') as 'title' | 'releaseDate', providerOrder: get('order').split(',').map(id => id.trim()).filter(Boolean), providers: { igdb: { enabled: (form.elements.namedItem('igdb') as HTMLInputElement).checked, configured: settings!.providers.igdb.configured }, thegamesdb: { enabled: (form.elements.namedItem('thegamesdb') as HTMLInputElement).checked, configured: settings!.providers.thegamesdb.configured }, steamgriddb: { enabled: (form.elements.namedItem('steamgriddb') as HTMLInputElement).checked, configured: settings!.providers.steamgriddb.configured } }, credentials: { igdbClientId: get('igdb-client'), igdbClientSecret: get('igdb-secret'), thegamesdbApiKey: get('thegamesdb-key'), steamgriddbApiKey: get('steamgriddb-key') } }); if (result.ok) settings = result.value; notice = result.ok ? 'Settings saved.' : result.message; })(); }}>
+        <label>Collection prefix <input name="prefix" value={settings.collectionPrefix} /></label><label><input name="visible" type="checkbox" checked={settings.showCollectionGames} /> Show collection games in main library</label><label>Matching threshold <input name="threshold" type="number" min="0" max="1" step="0.01" value={settings.matchingThreshold} /></label><label class="greedy-match"><input name="greedy-match" type="checkbox" checked={settings.greedyMatch} /> Greedy match <small>Always accept the first result ranked by the first provider that returns one.</small></label><label>Default sort <select name="sort" value={settings.defaultSort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label><label>Provider order <input name="order" value={settings.providerOrder.join(',')} /></label>
         <fieldset><legend>Providers</legend><label><input name="igdb" type="checkbox" checked={settings.providers.igdb.enabled} /> IGDB {settings.providers.igdb.configured ? 'configured' : 'not configured'}</label><input name="igdb-client" placeholder="New IGDB client ID" /><input name="igdb-secret" type="password" placeholder="New IGDB client secret" /><label><input name="thegamesdb" type="checkbox" checked={settings.providers.thegamesdb.enabled} /> TheGamesDB {settings.providers.thegamesdb.configured ? 'configured' : 'not configured'}</label><input name="thegamesdb-key" type="password" placeholder="New TheGamesDB API key" /><label><input name="steamgriddb" type="checkbox" checked={settings.providers.steamgriddb.enabled} /> SteamGridDB {settings.providers.steamgriddb.configured ? 'configured' : 'not configured'}</label><input name="steamgriddb-key" type="password" placeholder="New SteamGridDB API key" /><p class="muted">SteamGridDB supplies cover and banner art only. After a game is matched, use Fetch artwork on its details page to request missing assets.</p></fieldset><button class="primary">Save settings</button></form>
-      <section class="matching"><h3>Catalog maintenance</h3><p class="muted">These actions affect catalog records only. They never alter installer folders.</p><button onclick={async () => { if (!confirm('Remove all records currently marked missing? This cannot be undone.')) return; const result = await window.gameShelf.deleteMissing(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Remove missing records</button><button onclick={async () => { if (!confirm('Rebuild the catalog from the current library? This removes saved matches, manual metadata, and artwork associations.')) return; const result = await window.gameShelf.rebuildCatalog(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Rebuild catalog</button></section>
+      <section class="matching"><h3>Catalog maintenance</h3><p class="muted">These actions affect catalog records only. They never alter installer folders.</p><button onclick={async () => { if (!confirm('Remove all records currently marked missing? This cannot be undone.')) return; const result = await window.gameShelf.deleteMissing(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Remove missing records</button><button onclick={async () => { if (!confirm('Rebuild the catalog from the selected library? This removes saved matches, manual metadata, and artwork associations.')) return; const result = await window.gameShelf.rebuildCatalog(); if (result.ok) catalog = result.value; notice = result.message || ''; }}>Rebuild catalog</button><button class="danger" onclick={async () => { if (!confirm('Wipe all catalog records, cached artwork, and logs? Your library selection, settings, provider credentials, game folders, and archives will not be changed.')) return; const result = await window.gameShelf.wipeLibrary(); if (result.ok) { catalog = { games: [], collections: [] }; library = await window.gameShelf.getLibraryState(); const current = await window.gameShelf.getSettings(); if (current.ok) settings = current.value; } notice = result.message || ''; }}>Wipe library</button></section>
     </section>
   {:else}
   <div class="catalog" class:detail-open={selected !== undefined} aria-busy={busy}>
@@ -217,7 +249,7 @@
         onclick={() => { page = 'games'; needsMatching = true; collectionId = null; selectedId = null; }}>Needs Matching <span>{catalog.games.filter(game => game.matchStatus === 'unmatched').length}</span></button>
       {#each catalog.collections as item (item.id)}
         <button class:active={collectionId === item.id} aria-pressed={collectionId === item.id}
-          onclick={() => { page = 'collections'; needsMatching = false; collectionId = item.id; selectedId = null; }}>
+          onclick={() => openCollection(item.id)}>
           {item.displayName || item.folderName}
           <span>{catalog.games.filter(game => game.collectionId === item.id).length}</span>
           {#if item.missing}<small class="missing">Missing</small>{/if}
@@ -227,11 +259,11 @@
     </nav>
 
     <section class="game-list" aria-label="Games">
-      {#if page === 'home'}<div class="home"><h2>Home</h2><section class="home-section"><h3>Collections</h3>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => { page = 'collections'; collectionId = item.id; selectedId = null; }}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span></button>{/each}</div>{/if}</section>{#if recentlyAdded.length}<section class="home-section"><h3>Recently added</h3><div class="game-grid home-grid">{#each recentlyAdded as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong><small>{date(game.addedAt)}</small></span></button>{/each}</div></section>{/if}<section class="home-section"><div class="group-heading"><h3>Library</h3><label>Group by <select bind:value={homeGroupBy}><option value="decade">Release decade</option><option value="genre">Genre</option></select></label></div>{#if homeGroups.length === 0}<p class="empty">No games yet. Choose your folder, then select Scan library.</p>{:else}{#each homeGroups as group (group.label)}<section class="home-group"><h3>{group.label} <span class="count">{group.games.length}</span></h3><div class="game-grid home-grid">{#each group.games as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong>{#if homeGroupBy === 'genre' && game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}</span></button>{/each}</div></section>{/each}{/if}</section></div>{/if}
-      {#if page === 'collections' && collectionId === null}<div class="home"><h2>Collections</h2>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => { collectionId = item.id; selectedId = null; }}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span>{#if item.missing}<small class="missing">Missing</small>{/if}</button>{/each}</div>{/if}</div>{/if}
+      {#if page === 'home'}<div class="home"><h2>Home</h2><section class="home-section"><h3>Collections</h3>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span></button>{/each}</div>{/if}</section>{#if recentlyAdded.length}<section class="home-section"><h3>Recently added</h3><div class="game-grid home-grid">{#each recentlyAdded as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong><small>{date(game.addedAt)}</small></span></button>{/each}</div></section>{/if}<section class="home-section"><div class="group-heading"><h3>Library</h3><label>Group by <select bind:value={homeGroupBy}><option value="decade">Release decade</option><option value="genre">Genre</option></select></label></div>{#if homeGroups.length === 0}<p class="empty">No games yet. Choose your folder, then select Scan library.</p>{:else}{#each homeGroups as group (group.label)}<section class="home-group"><h3>{group.label} <span class="count">{group.games.length}</span></h3><div class="game-grid home-grid">{#each group.games as game (game.id)}<button class="game-card" onclick={() => selectGame(game.id)}>{#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder">No cover</span>{/if}{#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}<span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong>{#if homeGroupBy === 'genre' && game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}</span></button>{/each}</div></section>{/each}{/if}</section></div>{/if}
+      {#if page === 'collections' && collectionId === null}<div class="home"><h2>Collections</h2>{#if catalog.collections.length === 0}<p class="empty">No collections yet.</p>{:else}<div class="collection-grid">{#each catalog.collections as item (item.id)}{@const artwork = catalog.games.find(game => game.collectionId === item.id && game.coverUrl)?.coverUrl}<button class="collection-card" onclick={() => openCollection(item.id)}>{#if artwork}<img src={artwork} alt="" />{:else}<span class="card-placeholder">Collection</span>{/if}<span>{item.displayName || item.folderName}</span>{#if item.missing}<small class="missing">Missing</small>{/if}</button>{/each}</div>{/if}</div>{/if}
       {#if page === 'games' || (page === 'collections' && collectionId !== null)}
       <div class="filters" aria-label="Game filters"><label class="search-filter"><span class="search-icon" aria-hidden="true">⌕</span><input bind:value={titleFilter} placeholder="Search your library" /></label><label>Year <select bind:value={yearFilter}><option value="">All years</option>{#each years as year}<option value={String(year)}>{year}</option>{/each}</select></label><label>Genre <select bind:value={genreFilter}><option value="">All genres</option>{#each genres as genre}<option value={genre}>{genre}</option>{/each}</select></label><label>Collection <select bind:value={collectionFilter}><option value="all">All collections</option><option value="none">No collection</option>{#each catalog.collections as item}<option value={String(item.id)}>{item.displayName || item.folderName}</option>{/each}</select></label><label>Sort <select bind:value={sort}><option value="title">Title</option><option value="releaseDate">Release date</option></select></label></div>
-      <h2>{needsMatching ? 'Needs Matching' : collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2>
+      <div class="list-heading">{#if page === 'collections' && collection}<button class="back" onclick={backFromCollection}>← Back</button>{/if}<h2>{needsMatching ? 'Needs Matching' : collection ? collection.displayName || collection.folderName : 'All games'} <span class="count">{games.length}</span></h2></div>
       {#if games.length === 0}
         <p class="empty">{needsMatching ? 'No games need matching.' : collection ? 'This collection has no cataloged games.' : 'No games yet. Choose your folder, then select Scan library.'}</p>
       {:else}
@@ -240,11 +272,12 @@
             <li><button class="game-card" class:active={selectedId === game.id} aria-pressed={selectedId === game.id} onclick={() => selectGame(game.id)}>
               {#if game.coverUrl}<img src={game.coverUrl} alt={`Cover for ${game.metadata.title || game.folderName}`} />{:else}<span class="card-placeholder" aria-hidden="true">No cover</span>{/if}
               {#if game.matchStatus === 'unmatched'}<span class="match-warning" title="Needs matching" aria-label="Needs matching">!</span>{/if}
-              <span class="card-copy"><strong>{game.metadata.title || game.folderName}</strong>
+              <span class="card-copy"><strong>{game.metadata.title || game.displayName}</strong><span class="card-meta">
                 {#if game.metadata.releaseYear}<small>{game.metadata.releaseYear}</small>{/if}
+                {#if game.metadata.rating !== undefined}<small>★ {game.metadata.rating.toFixed(0)}</small>{/if}
                 {#if game.collectionId !== null}<small>{collectionName(game.collectionId)}</small>{/if}
                 {#if game.missing}<small class="missing">Missing</small>{/if}
-              </span>
+              </span></span>
             </button></li>
           {/each}
         </ul>
@@ -255,11 +288,11 @@
     {#if selected}<section class="details" aria-label="Game details">
         <div class="detail-hero" class:has-background={Boolean(selected.backgroundUrl)}>
           {#if selected.backgroundUrl}<img class="background" src={selected.backgroundUrl} alt="" />{/if}
-          <div class="detail-heading"><h2>{selected.metadata.title || selected.folderName}</h2><button class="close details-close" aria-label="Close game details" onclick={() => { selectedId = null; detailModal = null; detailMenu = false; }}>×</button></div>
+          <button class="close details-close" aria-label="Close game details" onclick={() => { selectedId = null; detailModal = null; detailMenu = false; }}>×</button><div class="detail-heading"><h2>{selected.metadata.title || selected.folderName}</h2></div>
         </div>
-        {#if selected.coverUrl}<img class="cover" src={selected.coverUrl} alt={`Cover for ${selected.metadata.title || selected.folderName}`} />{:else}<div class="cover placeholder" aria-label="No cover artwork available">No cover artwork</div>{/if}
+        <div class="detail-aside">{#if selected.coverUrl}<img class="cover" src={selected.coverUrl} alt={`Cover for ${selected.metadata.title || selected.folderName}`} />{:else}<div class="cover placeholder" aria-label="No cover artwork available">No cover artwork</div>{/if}{#if selectedCollection}<button class="collection-link" onclick={() => openCollection(selectedCollection.id)}><small>Found in collection</small><strong>{selectedCollection.displayName || selectedCollection.folderName}</strong></button>{/if}</div>
         {#if selected.metadata.description}<p class="description">{selected.metadata.description}</p>{/if}
-        <button class="install" disabled={busy} onclick={openFolder}>▣ Install</button>
+        <button class="install" disabled={busy} onclick={openFolder}>▣ Install</button>{#if selectedIsSingleFile}<button disabled={busy} onclick={openContainerFolder}>▣ Open Container Folder</button>{/if}
         <dl>
           <dt>Metadata match</dt><dd>{selected.matchStatus === 'matched' ? `${selected.bindingSource} · ${selected.providerId} · ${selected.providerRecordId}` : 'Needs matching'}</dd>
           {#if selected.metadata.releaseYear}<dt>Release year</dt><dd>{selected.metadata.releaseYear}</dd>{/if}
@@ -273,7 +306,7 @@
           <dt>Added</dt><dd>{date(selected.addedAt)}</dd>
           <dt>Last seen</dt><dd>{date(selected.lastSeenAt)}</dd>
         </dl>
-        <div class="detail-actions"><div class="edit-menu"><button aria-haspopup="menu" aria-expanded={detailMenu} onclick={() => detailMenu = !detailMenu}>Edit <span aria-hidden="true">⋮</span></button>{#if detailMenu}<div class="edit-menu-items" role="menu"><button role="menuitem" onclick={openMatching}>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</button><button role="menuitem" onclick={() => { detailMenu = false; detailModal = 'manual'; }}>Edit metadata & artwork</button>{#if selected.matchStatus === 'matched'}<button role="menuitem" onclick={openArtwork}>Fetch artwork</button>{/if}</div>{/if}</div></div>
+        <div class="detail-actions"><div class="edit-menu"><button aria-haspopup="menu" aria-expanded={detailMenu} onclick={() => detailMenu = !detailMenu}>Edit <span aria-hidden="true">⋮</span></button>{#if detailMenu}<div class="edit-menu-items" role="menu"><button role="menuitem" onclick={openMatching}>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</button><button role="menuitem" onclick={() => { detailMenu = false; detailModal = 'manual'; }}>Edit metadata & artwork</button>{#if selected.matchStatus === 'matched'}<button role="menuitem" onclick={openArtwork}>Fetch artwork</button>{/if}<button role="menuitem" class="danger" onclick={clearMetadata}>Clear all metadata</button></div>{/if}</div></div>
         {#if detailModal === 'matching'}<div class="modal-backdrop" role="button" tabindex="0" onclick={() => detailModal = null} onkeydown={event => { if (event.key === 'Escape' || event.key === 'Enter') detailModal = null; }}><div class="modal" role="dialog" tabindex="-1" aria-label="Metadata matching" onclick={event => event.stopPropagation()} onkeydown={event => event.stopPropagation()}><button class="close" onclick={() => detailModal = null}>×</button>
         <section class="matching" aria-label="Metadata matching">
           <h3>{selected.matchStatus === 'matched' ? 'Change match' : 'Find metadata'}</h3>
@@ -287,12 +320,12 @@
             <button disabled={busy || !query.trim()}>Search candidates</button>
           </form>
           {#if candidateGameId === selected.id}
-            <ul aria-label="Match candidates">
+            {#if candidates.length === 0}<p class="empty">No results from {searchProvider || 'the selected provider'}. Try another title or provider.</p>{:else}<ul aria-label="Match candidates">
               {#each candidates as candidate (`${candidate.providerId}:${candidate.recordId}`)}
                 <li class="candidate"><div><strong>{candidate.title}</strong><dl><dt>Release year</dt><dd>{candidate.releaseYear ?? 'Unknown'}</dd><dt>Provider</dt><dd>{candidate.providerId}</dd><dt>Record ID</dt><dd>{candidate.recordId}</dd><dt>Artwork</dt><dd>{candidate.hasArtwork ? 'Available' : 'Not reported by this search'}</dd></dl></div>
                   <button class="select-match" disabled={busy} onclick={() => match(false, candidate)}>✓ Select</button></li>
               {/each}
-            </ul>
+            </ul>{/if}
           {/if}
         </section></div></div>{/if}
         {#if detailModal === 'manual'}<div class="modal-backdrop" role="button" tabindex="0" onclick={() => detailModal = null} onkeydown={event => { if (event.key === 'Escape' || event.key === 'Enter') detailModal = null; }}><div class="modal" role="dialog" tabindex="-1" aria-label="Manual edits" onclick={event => event.stopPropagation()} onkeydown={event => event.stopPropagation()}><button class="close" onclick={() => detailModal = null}>×</button><section class="matching" aria-label="Manual edits">
@@ -315,12 +348,13 @@
 </main>
 
 <style>
+  :global(html), :global(body) { height: 100%; overflow: hidden; }
   :global(body) { margin: 0; background: #171b24; color: #edf0f6; font-family: system-ui, sans-serif; }
   :global(*) { box-sizing: border-box; }
-  main { min-height: 100vh; }
-  .app-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); }
-  .sidebar { padding: 22px 14px; background: #131821; border-right: 1px solid #394154; }
-  .workspace { min-width: 0; padding: 22px 28px; }
+  main { height: 100vh; }
+  .app-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); height: 100vh; overflow: hidden; }
+  .sidebar { min-height: 0; overflow-y: auto; padding: 22px 14px; background: #131821; border-right: 1px solid #394154; }
+  .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 22px 28px; }
   header { display: block; margin-bottom: 22px; }
   .eyebrow { color: #aabaff; font-size: 11px; letter-spacing: .12em; margin: 0; }
   h1 { font-size: 32px; margin: 4px 0 0; }
@@ -337,11 +371,20 @@
   button { padding: 9px 12px; border: 1px solid #566380; border-radius: 6px; background: #293246; color: #edf0f6; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
   button:hover { background: #35446a; }
   .primary { background: #435caa; border-color: #788bce; }
+  .danger { background: #7f2e3a; border-color: #d67783; color: #fff; }
+  .danger:hover { background: #983846; }
   button:disabled { opacity: .5; cursor: default; }
   button:focus-visible { outline: 2px solid #aabaff; outline-offset: 3px; }
-  .catalog { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 44%); gap: 20px; align-items: start; }
+  .catalog { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(360px, 44%); gap: 20px; align-items: stretch; overflow: hidden; }
   .catalog:not(.detail-open) { grid-template-columns: minmax(0, 1fr); }
   .catalog > nav { display: none; }
+  .game-list, .details { min-height: 0; height: 100%; overflow-y: auto; }
+  .settings-panel { height: 100%; overflow-y: auto; }
+  .sidebar, .game-list, .details, .settings-panel, .modal { scrollbar-width: thin; scrollbar-color: #7186c9 #171d29; }
+  .sidebar::-webkit-scrollbar, .game-list::-webkit-scrollbar, .details::-webkit-scrollbar, .settings-panel::-webkit-scrollbar, .modal::-webkit-scrollbar { width: 10px; height: 10px; }
+  .sidebar::-webkit-scrollbar-track, .game-list::-webkit-scrollbar-track, .details::-webkit-scrollbar-track, .settings-panel::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track { background: #171d29; border-radius: 999px; }
+  .sidebar::-webkit-scrollbar-thumb, .game-list::-webkit-scrollbar-thumb, .details::-webkit-scrollbar-thumb, .settings-panel::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb { border: 2px solid #171d29; border-radius: 999px; background: linear-gradient(#91a4eb, #586fae); }
+  .sidebar::-webkit-scrollbar-thumb:hover, .game-list::-webkit-scrollbar-thumb:hover, .details::-webkit-scrollbar-thumb:hover, .settings-panel::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover { background: linear-gradient(#b5c1ff, #7186c9); }
   .pages { display: grid; gap: 6px; margin-bottom: 18px; }
   .pages button { width: 100%; display: flex; align-items: center; gap: 10px; }
   .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -364,7 +407,10 @@
   ul { list-style: none; padding: 0; margin: 0; }
   li + li { margin-top: 8px; }
   li button { width: 100%; overflow-wrap: anywhere; }
-  .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .list-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .list-heading h2 { margin: 0; }
+  .back { flex: none; }
   .home-section { margin-top: 28px; }
   .home-section:first-of-type { margin-top: 0; }
   .home-group { margin-top: 24px; }
@@ -374,14 +420,17 @@
   .collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
   .collection-card { position: relative; min-height: 180px; overflow: hidden; padding: 0; display: grid; place-items: end start; text-align: left; }
   .collection-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .42; filter: saturate(.7) brightness(.65); }
+  .collection-card .card-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
   .collection-card > span:not(.card-placeholder), .collection-card small { position: relative; z-index: 1; width: 100%; padding: 12px; background: linear-gradient(transparent, rgb(10 14 20 / .9)); font-size: 17px; font-weight: 700; }
   .collection-card small { padding-top: 0; font-size: 12px; }
   .game-grid li + li { margin-top: 0; }
-  .game-card { position: relative; height: 100%; min-height: 250px; display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; }
-  .game-card img, .card-placeholder { width: 100%; height: 175px; object-fit: cover; background: #171b24; }
+  .game-card { position: relative; width: 100%; aspect-ratio: 2 / 3; min-height: 0; padding: 0; overflow: hidden; text-align: left; background: #171b24; }
+  .game-card img, .game-card .card-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #171b24; }
   .card-placeholder { display: grid; place-items: center; color: #a5b0c6; font-size: 12px; }
-  .card-copy { display: block; padding: 10px; }
-  .card-copy strong { display: block; }
+  .card-copy { position: absolute; z-index: 1; right: 0; bottom: 0; left: 0; display: block; padding: 32px 11px 11px; background: linear-gradient(transparent, rgb(10 14 20 / .94) 42%); }
+  .card-copy strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; color: #fff; line-height: 1.25; }
+  .card-meta { display: flex; flex-wrap: wrap; gap: 4px 9px; }
+  .card-meta small { margin: 5px 0 0; }
   .match-warning { position: absolute; z-index: 1; top: 8px; right: 8px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #f0c84b; color: #342900; font-size: 17px; font-weight: 900; box-shadow: 0 2px 8px #0009; }
   small { display: block; font-size: 12px; color: #bcc5d5; margin-top: 4px; }
   .missing { color: #f0c18c; }
@@ -392,14 +441,19 @@
   .details button { margin-top: 8px; }
   .install { background: #276a48; border-color: #62ae82; font-weight: 700; }
   .install:hover { background: #348158; }
-  .details-close { float: right; margin: 0 !important; font-size: 18px; padding: 2px 9px; }
-  .detail-hero { margin-bottom: 12px; }
+  .details { position: relative; }
+  .details-close { position: absolute; z-index: 3; top: 8px; right: 8px; margin: 0 !important; font-size: 18px; padding: 2px 9px; }
+  .detail-hero { position: relative; margin-bottom: 12px; }
   .detail-hero.has-background { position: relative; min-height: 150px; display: flex; align-items: end; overflow: hidden; border-radius: 6px; }
-  .detail-heading { position: relative; z-index: 1; display: flex; align-items: start; justify-content: space-between; gap: 12px; width: 100%; }
+  .detail-heading { position: relative; z-index: 1; display: flex; align-items: start; gap: 12px; width: 100%; padding-right: 42px; }
   .detail-hero.has-background .detail-heading { padding: 38px 14px 14px; background: linear-gradient(transparent, rgb(10 14 20 / .92)); }
   .detail-hero.has-background h2 { color: #fff; text-shadow: 0 2px 8px #000; }
   .detail-heading h2 { margin-right: auto; }
-  .cover { width: 300px; height: 450px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; float: right; margin: 0 0 12px 18px; border: 1px solid #566380; }
+  .detail-aside { float: right; width: min(300px, 42%); margin: 0 0 12px 18px; }
+  .cover { width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; border: 1px solid #566380; }
+  .collection-link { display: grid; width: 100%; gap: 3px; margin: 10px 0 0 !important; padding: 10px 12px; border-color: #677ab4; background: #273451; }
+  .collection-link small { margin: 0; color: #b8c8ff; }
+  .collection-link strong { overflow-wrap: anywhere; }
   .placeholder { min-height: 140px; display: grid; place-items: center; padding: 8px; color: #a5b0c6; font-size: 12px; text-align: center; background: #171b24; }
   .background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .58; }
   .description { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -408,7 +462,7 @@
   .match-context { display: grid; gap: 4px; margin: 12px 0; padding: 12px; border: 1px solid #4c5b78; border-radius: 7px; background: #171d29; }
   .match-context span { color: #bcc5d5; font-size: 12px; overflow-wrap: anywhere; }
   .matching label { display: block; margin: 16px 0 6px; font-size: 13px; }
-  .matching input, .matching select { width: 100%; padding: 8px; background: #171b24; color: #edf0f6; border: 1px solid #566380; border-radius: 4px; }
+  .matching input, .matching select { width: 100%; padding: 8px; caret-color: #fff; background: #171b24; color: #edf0f6; border: 1px solid #566380; border-radius: 4px; }
   .matching textarea { width: 100%; min-height: 80px; padding: 8px; background: #171b24; color: #edf0f6; border: 1px solid #566380; border-radius: 4px; }
   .matching li { margin-top: 12px; border-top: 1px solid #394154; padding-top: 8px; }
   .candidate { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #394154; border-radius: 7px; background: #171d29; }
@@ -424,11 +478,13 @@
   .settings-form fieldset label { display: block; }
   .settings-form fieldset label { display: flex; align-items: center; gap: 8px; }
   .settings-form input[type='checkbox'] { width: auto; margin: 0; }
+  .settings-form .greedy-match { display: block; padding: 12px; border: 1px solid #566380; border-radius: 6px; background: #171d29; }
+  .greedy-match small { margin-left: 28px; }
   .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
   .edit-menu { position: relative; }
   .edit-menu > button { display: inline-flex; align-items: center; gap: 8px; }
   .edit-menu > button span { font-size: 18px; line-height: .6; }
-  .edit-menu-items { position: absolute; z-index: 2; right: 0; top: calc(100% + 6px); display: grid; min-width: 190px; padding: 6px; border: 1px solid #566380; border-radius: 7px; background: #202633; box-shadow: 0 10px 30px #0008; }
+  .edit-menu-items { display: grid; min-width: 190px; margin-top: 6px; padding: 6px; border: 1px solid #566380; border-radius: 7px; background: #202633; box-shadow: 0 10px 30px #0008; }
   .edit-menu-items button { width: 100%; margin: 0; }
   .artwork-modal label { display: grid; gap: 4px; margin: 16px 0 6px; font-size: 13px; }
   .artwork-modal small { color: #bcc5d5; font-size: 11px; }
@@ -446,6 +502,6 @@
   .modal { position: relative; width: min(620px, 100%); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid #566380; border-radius: 10px; background: #202633; box-shadow: 0 20px 60px #000; }
   .modal .matching { margin-top: 0; }.close { float: right; font-size: 20px; padding: 2px 9px; }
   @media (max-width: 850px) {
-    .app-shell { grid-template-columns: 1fr; }.sidebar { border-right: 0; border-bottom: 1px solid #394154; }.pages { grid-template-columns: repeat(4, 1fr); }.workspace { padding: 16px; }.catalog { grid-template-columns: 1fr; }.details { grid-column: auto; }
+    :global(html), :global(body) { height: auto; overflow: auto; } main, .app-shell { height: auto; overflow: visible; }.app-shell { grid-template-columns: 1fr; }.sidebar { overflow: visible; border-right: 0; border-bottom: 1px solid #394154; }.pages { grid-template-columns: repeat(4, 1fr); }.workspace { display: block; overflow: visible; padding: 16px; }.catalog { display: grid; overflow: visible; grid-template-columns: 1fr; }.game-list, .details, .settings-panel { height: auto; overflow: visible; }.details { grid-column: auto; }
   }
 </style>

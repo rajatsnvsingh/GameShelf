@@ -42,15 +42,19 @@ test('selects highest confidence independent of provider result order and fetche
   }
 });
 
-test('equal titles with different IDs remain ambiguous, including remakes with different years', async () => {
+test('equal exact titles use the provider-ranked first record', async () => {
   const f = fake('fixture', [{ recordId: 'old', title: 'Game A', releaseYear: 1999 }, { recordId: 'new', title: 'Game A', releaseYear: 2024 }]);
-  assert.deepEqual(await resolveMetadata('Game A', [f.entry]), { status: 'unresolved', attempts: [{ providerId: 'fixture', outcome: 'ambiguous' }] });
-  assert.deepEqual(f.calls, ['search:Game A']);
+  const result = await resolveMetadata('Game A', [f.entry]);
+  assert.equal(result.status, 'matched');
+  if (result.status !== 'matched') assert.fail();
+  assert.equal(result.binding.providerRecordId, 'old');
+  assert.deepEqual(f.calls, ['search:Game A', 'detail:old']);
 });
 
 test('threshold is configurable and a close runner-up blocks matching even below threshold', async () => {
   const one = fake('fixture', [{ recordId: '1', title: 'Game A Deluxe' }]);
-  assert.equal((await resolveMetadata('Game A', [one.entry])).status, 'unresolved');
+  assert.equal((await resolveMetadata('Game A', [one.entry])).status, 'matched');
+  assert.equal((await resolveMetadata('Game A', [one.entry], { threshold: 0.9 })).status, 'unresolved');
   assert.equal((await resolveMetadata('Game A', [one.entry], { threshold: 0.8 })).status, 'matched');
   const close = fake('fixture', [{ recordId: '1', title: 'Game A Deluxe' }, { recordId: '2', title: 'Game A Deluxe Edition' }]);
   const result = await resolveMetadata('Game A', [close.entry], { threshold: 0.8 });
@@ -59,6 +63,16 @@ test('threshold is configurable and a close runner-up blocks matching even below
   const near = fake('fixture', [{ recordId: '1', title: 'One Two Three Four Extra' }, { recordId: '2', title: 'One Two Three Four Extra Edition' }]);
   assert.deepEqual((await resolveMetadata('One Two Three Four', [near.entry], { threshold: 0.88 })),
     { status: 'unresolved', attempts: [{ providerId: 'fixture', outcome: 'ambiguous' }] });
+});
+
+test('greedy matching accepts the first provider-ranked result without threshold or ambiguity checks', async () => {
+  const f = fake('fixture', [{ recordId: 'first', title: 'Unrelated' }, { recordId: 'exact', title: 'Game A' }]);
+  const result = await resolveMetadata('Game A', [f.entry], { greedyMatch: true });
+  assert.equal(result.status, 'matched');
+  if (result.status !== 'matched') assert.fail();
+  assert.equal(result.binding.providerRecordId, 'first');
+  assert.equal(result.binding.confidence, 0);
+  assert.deepEqual(f.calls, ['search:Game A', 'detail:first']);
 });
 
 test('zero confidence never matches even with a zero threshold; blank input makes no requests', async () => {
@@ -81,15 +95,16 @@ test('disabled and unconfigured providers are never called; no providers is vali
   assert.deepEqual(await resolveMetadata('Game A', []), { status: 'unresolved', attempts: [] });
 });
 
-test('uses supplied priority, falls through empty and ambiguous results, and stops after a match', async () => {
+test('uses supplied priority and stops after the provider-ranked exact match', async () => {
   const empty = fake('empty', []);
   const ambiguous = fake('ambiguous', [{ recordId: '1', title: 'Game A' }, { recordId: '2', title: 'Game A' }]);
   const chosen = fake('chosen');
   const later = fake('later');
   const result = await resolveMetadata('Game A', [empty.entry, ambiguous.entry, chosen.entry, later.entry]);
   if (result.status !== 'matched') assert.fail();
-  assert.equal(result.binding.providerId, 'chosen');
-  assert.deepEqual(result.attempts.map(attempt => attempt.outcome), ['no-results', 'ambiguous', 'matched']);
+  assert.equal(result.binding.providerId, 'ambiguous');
+  assert.deepEqual(result.attempts.map(attempt => attempt.outcome), ['no-results', 'matched']);
+  assert.deepEqual(chosen.calls, []);
   assert.deepEqual(later.calls, []);
 });
 

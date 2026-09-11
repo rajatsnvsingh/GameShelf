@@ -112,9 +112,9 @@ test('IGDB request errors, authentication failures and malformed responses expos
   }
 });
 
-test('IGDB incomplete search, invalid records and mismatched details never become matches', async () => {
+test('IGDB returns its bounded first search page while invalid records and mismatched details never become matches', async () => {
   const full = fixture([json(token), json(Array.from({ length: 50 }, (_, index) => ({ ...game, id: index + 1 })))]);
-  await assert.rejects(full.provider.search('Game A'), code('search-too-broad'));
+  assert.equal((await full.provider.search('Game A')).length, 50);
   const invalid = fixture([json(token), json([{ id: '1', name: 'Game A' }])]);
   await assert.rejects(invalid.provider.search('Game A'), code('invalid-response'));
   const mismatch = fixture([json(token), json([{ ...game, id: 2 }])]);
